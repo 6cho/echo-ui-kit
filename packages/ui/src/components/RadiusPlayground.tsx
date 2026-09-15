@@ -13,8 +13,15 @@ import { Slider } from "./Slider";
 const MAX_PX = 100;
 const MAX_PERCENT = 50;
 
-const INITIAL_BOX_WIDTH = 200;
-const INITIAL_BOX_HEIGHT = 140;
+const INITIAL_SIZE = { width: 200, height: 140 };
+const MIN_WIDTH = 60;
+const MIN_HEIGHT = 48;
+const MAX_WIDTH = 300;
+const MAX_HEIGHT = 280;
+
+// How far in from an edge still counts as grabbing that edge. Capped against the box's own
+// dimensions so a small box doesn't end up with overlapping zones and no middle at all.
+const MAX_EDGE_ZONE = 32;
 
 const DEFAULT_CORNERS: RadiusCorners = {
   topLeft: 12,
@@ -26,22 +33,36 @@ const DEFAULT_CORNERS: RadiusCorners = {
 const LEFT_CORNERS: (keyof RadiusCorners)[] = ["topLeft", "bottomLeft"];
 const TOP_CORNERS: (keyof RadiusCorners)[] = ["topLeft", "topRight"];
 
+type Zone =
+  | { kind: "radius"; corner: keyof RadiusCorners }
+  | { kind: "resize"; axis: "x" | "y"; sign: 1 | -1 }
+  | null;
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+function cursorFor(zone: Zone): string {
+  if (!zone) return "default";
+  if (zone.kind === "radius") return "grab";
+  return zone.axis === "x" ? "ew-resize" : "ns-resize";
+}
+
 export function RadiusPlayground() {
   const [corners, setCorners] = useState<RadiusCorners>(DEFAULT_CORNERS);
+  const [size, setSize] = useState(INITIAL_SIZE);
   const [unit, setUnit] = useState<RadiusUnit>("px");
   const [linked, setLinked] = useState(true);
+  const [cursor, setCursor] = useState("default");
 
   const boxRef = useRef<HTMLDivElement>(null);
-  // Captures which corner was grabbed and what it measured at the time, so the drag applies a
-  // delta. Tracking the absolute pointer position instead would snap the radius to whatever
-  // number happened to sit under your cursor the instant you pressed.
+  // What was grabbed and what it measured at the time, so every drag applies a delta rather than
+  // snapping to whatever value happened to sit under the cursor when you pressed.
   const dragRef = useRef<{
-    corner: keyof RadiusCorners;
+    zone: NonNullable<Zone>;
     startRadius: number;
+    startWidth: number;
+    startHeight: number;
     pointerX: number;
     pointerY: number;
   } | null>(null);
@@ -72,78 +93,128 @@ export function RadiusPlayground() {
     setUnit(nextUnit);
   }
 
-  /** Which corner the pointer is closest to — the quadrant it pressed in. With no handles on the
-   *  shape, this is what tells an unlinked drag which corner you meant. */
-  function grabbedCorner(
-    clientX: number,
-    clientY: number,
-  ): keyof RadiusCorners {
+  /**
+   * What the pointer is over: a corner rounds, an edge resizes, the middle does nothing.
+   *
+   * Splitting by region is what lets both gestures live on the same shape without any handles
+   * drawn on top of it — the only affordance is the cursor, which changes as you move across.
+   */
+  function zoneAt(clientX: number, clientY: number): Zone {
     const rect = boxRef.current?.getBoundingClientRect();
-    if (!rect) return "topLeft";
-    const isRight = clientX > rect.left + rect.width / 2;
-    const isBottom = clientY > rect.top + rect.height / 2;
-    if (isBottom) return isRight ? "bottomRight" : "bottomLeft";
-    return isRight ? "topRight" : "topLeft";
+    if (!rect || rect.width === 0 || rect.height === 0) return null;
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    const zone = Math.min(MAX_EDGE_ZONE, rect.width / 3, rect.height / 3);
+
+    const nearLeft = x <= zone;
+    const nearRight = x >= rect.width - zone;
+    const nearTop = y <= zone;
+    const nearBottom = y >= rect.height - zone;
+
+    // Corners win over edges: where the two overlap, you're at a corner.
+    if ((nearLeft || nearRight) && (nearTop || nearBottom)) {
+      const corner = nearBottom
+        ? nearRight
+          ? "bottomRight"
+          : "bottomLeft"
+        : nearRight
+          ? "topRight"
+          : "topLeft";
+      return { kind: "radius", corner };
+    }
+    if (nearLeft) return { kind: "resize", axis: "x", sign: -1 };
+    if (nearRight) return { kind: "resize", axis: "x", sign: 1 };
+    if (nearTop) return { kind: "resize", axis: "y", sign: -1 };
+    if (nearBottom) return { kind: "resize", axis: "y", sign: 1 };
+    return null;
+  }
+
+  function handlePointerMove(e: React.PointerEvent) {
+    const drag = dragRef.current;
+    if (!drag) {
+      setCursor(cursorFor(zoneAt(e.clientX, e.clientY)));
+      return;
+    }
+    const dx = e.clientX - drag.pointerX;
+    const dy = e.clientY - drag.pointerY;
+    // Pulled out as a local so the narrowing below survives into the setSize callbacks —
+    // `drag.zone` is a mutable property, which discards it at the closure boundary.
+    const { zone } = drag;
+
+    if (zone.kind === "radius") {
+      // Projected toward the middle of the box, so "pull inward to round it" holds for every
+      // corner. Without the per-corner signs the right-hand corners would round as you dragged
+      // away from them, which reads as broken immediately.
+      const signX = LEFT_CORNERS.includes(zone.corner) ? 1 : -1;
+      const signY = TOP_CORNERS.includes(zone.corner) ? 1 : -1;
+      const delta = (dx * signX + dy * signY) / 2;
+      updateCorner(
+        zone.corner,
+        clamp(Math.round(drag.startRadius + delta), 0, max),
+      );
+      return;
+    }
+
+    // Doubled because the box is centred: moving one edge out by a pixel widens it by two, so
+    // without this the edge drifts behind the pointer at half speed.
+    if (zone.axis === "x") {
+      setSize((current) => ({
+        ...current,
+        width: clamp(
+          Math.round(drag.startWidth + dx * zone.sign * 2),
+          MIN_WIDTH,
+          MAX_WIDTH,
+        ),
+      }));
+    } else {
+      setSize((current) => ({
+        ...current,
+        height: clamp(
+          Math.round(drag.startHeight + dy * zone.sign * 2),
+          MIN_HEIGHT,
+          MAX_HEIGHT,
+        ),
+      }));
+    }
   }
 
   return (
     <div className="flex flex-col gap-4 p-4">
-      <div className="flex min-h-56 items-center justify-center rounded-lg border border-black/10 bg-zinc-100 p-4 dark:border-white/10 dark:bg-surface-elevated">
-        {/* The resize grip lives in this wrapper's padding rather than on the shape itself, so
-            grabbing it can't also start a radius drag. Native `resize` needs a non-visible
-            overflow to show up at all. */}
+      <div className="flex min-h-72 items-center justify-center rounded-lg border border-black/10 bg-zinc-100 p-4 dark:border-white/10 dark:bg-surface-elevated">
         <div
-          className="resize overflow-hidden pr-4 pb-4"
-          style={{
-            width: INITIAL_BOX_WIDTH,
-            height: INITIAL_BOX_HEIGHT,
-            minWidth: 80,
-            minHeight: 60,
-            maxWidth: "100%",
-            maxHeight: 320,
+          ref={boxRef}
+          onPointerDown={(e) => {
+            const zone = zoneAt(e.clientX, e.clientY);
+            if (!zone) return;
+            dragRef.current = {
+              zone,
+              startRadius: zone.kind === "radius" ? corners[zone.corner] : 0,
+              startWidth: size.width,
+              startHeight: size.height,
+              pointerX: e.clientX,
+              pointerY: e.clientY,
+            };
+            e.currentTarget.setPointerCapture(e.pointerId);
           }}
-        >
-          <div
-            ref={boxRef}
-            onPointerDown={(e) => {
-              const corner = grabbedCorner(e.clientX, e.clientY);
-              dragRef.current = {
-                corner,
-                startRadius: corners[corner],
-                pointerX: e.clientX,
-                pointerY: e.clientY,
-              };
-              e.currentTarget.setPointerCapture(e.pointerId);
-            }}
-            onPointerMove={(e) => {
-              const drag = dragRef.current;
-              if (!drag) return;
-              // Projected toward the middle of the box, so "pull it inward to round it" holds for
-              // every corner. Without the per-corner signs, the right-hand corners would round as
-              // you dragged away from them, which reads as broken immediately.
-              const signX = LEFT_CORNERS.includes(drag.corner) ? 1 : -1;
-              const signY = TOP_CORNERS.includes(drag.corner) ? 1 : -1;
-              const delta =
-                ((e.clientX - drag.pointerX) * signX +
-                  (e.clientY - drag.pointerY) * signY) /
-                2;
-              updateCorner(
-                drag.corner,
-                clamp(Math.round(drag.startRadius + delta), 0, max),
-              );
-            }}
-            onPointerUp={(e) => {
-              dragRef.current = null;
-              e.currentTarget.releasePointerCapture(e.pointerId);
-            }}
-            className="h-full w-full cursor-grab touch-none select-none bg-brand-500 active:cursor-grabbing"
-            style={{ borderRadius: value }}
-          />
-        </div>
+          onPointerMove={handlePointerMove}
+          onPointerUp={(e) => {
+            dragRef.current = null;
+            e.currentTarget.releasePointerCapture(e.pointerId);
+          }}
+          onPointerLeave={() => {
+            if (!dragRef.current) setCursor("default");
+          }}
+          className="touch-none select-none bg-brand-500"
+          style={{
+            width: size.width,
+            height: size.height,
+            borderRadius: value,
+            cursor,
+          }}
+        />
       </div>
       <p className="-mt-2 text-[11px] text-zinc-500">
-        Drag the shape inward to round the nearest corner. Drag the bottom-right
-        grip to resize.
+        {`Drag a corner to round it, an edge to resize — ${size.width} × ${size.height}`}
       </p>
 
       <div className="flex items-center justify-between gap-2">
