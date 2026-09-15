@@ -38,6 +38,26 @@ const MAX_HEIGHT = 280;
 // from.
 const MAX_EDGE_ZONE = 32;
 
+// Where the preview falls back to when a property is switched off. Radius, background, and shadow
+// use the genuine CSS defaults; size can't, because an empty div with `width: auto` is zero by
+// zero and would leave nothing on screen to switch back on.
+const DISABLED_SIZE = { width: 160, height: 100 };
+const DISABLED_BACKGROUND = "transparent";
+const DISABLED_RADIUS = "0";
+const DISABLED_SHADOW = "none";
+
+// Long enough to read as a movement rather than a jump, short enough not to feel like waiting.
+const TRANSITION_MS = 220;
+const TRANSITIONED_PROPERTIES = [
+  "width",
+  "height",
+  "background",
+  "border-radius",
+  "box-shadow",
+]
+  .map((property) => `${property} ${TRANSITION_MS}ms ease`)
+  .join(", ");
+
 const DEFAULT_CORNERS: RadiusCorners = {
   topLeft: 12,
   topRight: 12,
@@ -105,10 +125,8 @@ export function BoxEditor({
   const [foreground, setForeground] = useState<Fill>(() =>
     solidFill(SURFACE_PRESETS.light.foreground),
   );
-  // What gets emitted. Radius and shadow are additive, so switching them off removes them from
-  // the preview too — that's exactly what omitting the declaration looks like. Size and
-  // background can't work that way: leaving them out means "whatever the real element already
-  // has", which a preview has no way to show, so the preview keeps rendering them.
+  // What gets emitted, and what the preview shows: a switched-off property drops to its default
+  // rather than staying on screen, so the preview always matches the rule you'd copy.
   const [enabled, setEnabled] = useState({
     size: true,
     foreground: true,
@@ -117,6 +135,11 @@ export function BoxEditor({
   });
   const [outputTab, setOutputTab] = useState("css");
   const [cursor, setCursor] = useState("default");
+  // Transitions are armed only around a switch, never during a drag or a slider — easing a value
+  // that's tracking your pointer makes the box lag behind it, which reads as the tool being slow
+  // rather than as polish.
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const transitionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const boxRef = useRef<HTMLDivElement>(null);
   // What was grabbed and what it measured at the time, so every gesture applies a delta rather
@@ -137,10 +160,17 @@ export function BoxEditor({
     () => formatRadius(corners, radiusUnit),
     [corners, radiusUnit],
   );
-  const shadowValue = useMemo(
-    () => (enabled.shadow ? formatBoxShadow(layers) : "none"),
-    [layers, enabled.shadow],
-  );
+  const shadowValue = useMemo(() => formatBoxShadow(layers), [layers]);
+
+  function toggleSection(key: keyof typeof enabled, next: boolean) {
+    setEnabled((current) => ({ ...current, [key]: next }));
+    setIsTransitioning(true);
+    if (transitionTimer.current) clearTimeout(transitionTimer.current);
+    transitionTimer.current = setTimeout(
+      () => setIsTransitioning(false),
+      TRANSITION_MS,
+    );
+  }
 
   const output = useMemo(
     () =>
@@ -206,8 +236,12 @@ export function BoxEditor({
     const nearTop = y <= zone;
     const nearBottom = y >= rect.height - zone;
 
+    // A switched-off property stops responding to its gesture — otherwise you'd be dragging a
+    // value that isn't on screen and isn't in the output, with nothing to show for it. The cursor
+    // falls back to the default too, so the dead region is visible before you press.
     // Corners win over edges: where the two overlap, you're at a corner.
     if ((nearLeft || nearRight) && (nearTop || nearBottom)) {
+      if (!enabled.radius) return null;
       const corner = nearBottom
         ? nearRight
           ? "bottomRight"
@@ -217,11 +251,14 @@ export function BoxEditor({
           : "topLeft";
       return { kind: "radius", corner };
     }
-    if (nearLeft) return { kind: "resize", axis: "x", sign: -1 };
-    if (nearRight) return { kind: "resize", axis: "x", sign: 1 };
-    if (nearTop) return { kind: "resize", axis: "y", sign: -1 };
-    if (nearBottom) return { kind: "resize", axis: "y", sign: 1 };
-    return { kind: "shadow" };
+    if (nearLeft || nearRight || nearTop || nearBottom) {
+      if (!enabled.size) return null;
+      if (nearLeft) return { kind: "resize", axis: "x", sign: -1 };
+      if (nearRight) return { kind: "resize", axis: "x", sign: 1 };
+      if (nearTop) return { kind: "resize", axis: "y", sign: -1 };
+      return { kind: "resize", axis: "y", sign: 1 };
+    }
+    return enabled.shadow ? { kind: "shadow" } : null;
   }
 
   function handlePointerMove(e: React.PointerEvent) {
@@ -337,11 +374,14 @@ export function BoxEditor({
           }}
           className="touch-none select-none"
           style={{
-            width: size.width,
-            height: size.height,
-            background: formatFill(foreground),
-            borderRadius: enabled.radius ? radiusValue : undefined,
-            boxShadow: shadowValue,
+            width: enabled.size ? size.width : DISABLED_SIZE.width,
+            height: enabled.size ? size.height : DISABLED_SIZE.height,
+            background: enabled.foreground
+              ? formatFill(foreground)
+              : DISABLED_BACKGROUND,
+            borderRadius: enabled.radius ? radiusValue : DISABLED_RADIUS,
+            boxShadow: enabled.shadow ? shadowValue : DISABLED_SHADOW,
+            transition: isTransitioning ? TRANSITIONED_PROPERTIES : undefined,
             cursor,
           }}
         />
@@ -357,16 +397,14 @@ export function BoxEditor({
         onBackdropChange={setBackdrop}
         onForegroundChange={setForeground}
         foregroundEnabled={enabled.foreground}
-        onForegroundEnabledChange={(next) =>
-          setEnabled((c) => ({ ...c, foreground: next }))
-        }
+        onForegroundEnabledChange={(next) => toggleSection("foreground", next)}
       />
 
       <CollapsibleSection
         title="Size"
         summary={`${size.width} × ${size.height}`}
         enabled={enabled.size}
-        onToggle={(next) => setEnabled((c) => ({ ...c, size: next }))}
+        onToggle={(next) => toggleSection("size", next)}
       >
         <Slider
           label="Width"
@@ -392,7 +430,7 @@ export function BoxEditor({
         title="Radius"
         summary={radiusValue}
         enabled={enabled.radius}
-        onToggle={(next) => setEnabled((c) => ({ ...c, radius: next }))}
+        onToggle={(next) => toggleSection("radius", next)}
       >
         <div className="flex items-center justify-between gap-2">
           <div className="flex gap-1 rounded-md bg-zinc-100 p-0.5 dark:bg-surface-elevated">
@@ -457,7 +495,7 @@ export function BoxEditor({
         title="Shadow"
         summary={shadowSummary}
         enabled={enabled.shadow}
-        onToggle={(next) => setEnabled((c) => ({ ...c, shadow: next }))}
+        onToggle={(next) => toggleSection("shadow", next)}
       >
         <ShadowLayerControls
           layers={layers}
