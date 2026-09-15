@@ -1,0 +1,30 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+overrides:
+  # Vite 8 defaults to the new Rolldown-based bundler, which currently crashes
+  # ("Class extends value undefined") resolving tsconfig under WXT's jiti-based
+  # config loader on this setup. Vite 7 is still on classic Rollup and is within
+  # every consumer's peer range (WXT, @tailwindcss/vite) — pin to it workspace-wide.
+  vite: ^7.3.6
+  # @wxt-dev/module-react allows plugin-react 4-6, but 6.x hard-requires vite 8
+  # (imports vite's "./internal" export, only present in 8+). Pin to 5.x, the
+  # newest major still built against vite 7's export map.
+  "@vitejs/plugin-react": ^5.2.0
+minimumReleaseAgeExclude:
+  - '@biomejs/biome@2.5.13'
+  - '@biomejs/cli-darwin-arm64@2.5.13'
+  - '@biomejs/cli-darwin-x64@2.5.13'
+  - '@biomejs/cli-linux-arm64-musl@2.5.13'
+  - '@biomejs/cli-linux-arm64@2.5.13'
+  - '@biomejs/cli-linux-x64-musl@2.5.13'
+  - '@biomejs/cli-linux-x64@2.5.13'
+  - '@biomejs/cli-win32-arm64@2.5.13'
+  - '@biomejs/cli-win32-x64@2.5.13'
+  - '@types/react-dom@19.3.0'
+  - '@types/react@19.3.0'
+  - react-dom@19.3.0
+  - react@19.3.0
+  - scheduler@0.28.0
+allowBuilds:
+  esbuild: true
