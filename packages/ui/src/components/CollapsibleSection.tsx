@@ -63,17 +63,22 @@ export function CollapsibleSection({
   return (
     <div className="flex flex-col overflow-hidden rounded-lg border border-black/10 dark:border-white/10">
       {/* The switch is a sibling of the expand button, not inside it — a button can't contain
-          another button, and toggling a property shouldn't also fold its section. */}
-      <div className="flex items-center gap-2 pr-3">
+          another button, and toggling a property shouldn't also fold its section.
+          The hover background belongs to this row rather than to the button: on the button it
+          stopped at the button's own edge, leaving the switch and the padding beside it
+          unhighlighted and tearing the row in half. */}
+      <div
+        className={`flex items-center gap-2 pr-3 transition ${
+          enabled ? "hover:bg-zinc-100 dark:hover:bg-surface-elevated" : ""
+        }`}
+      >
         <button
           type="button"
           onClick={() => setIsOpen((open) => !open)}
           aria-expanded={showBody}
           disabled={!enabled}
-          className={`flex flex-1 items-center gap-2 px-3 py-2 text-left transition ${
-            enabled
-              ? "cursor-pointer hover:bg-zinc-100 dark:hover:bg-surface-elevated"
-              : "cursor-not-allowed"
+          className={`flex flex-1 items-center gap-2 px-3 py-2 text-left ${
+            enabled ? "cursor-pointer" : "cursor-not-allowed"
           }`}
         >
           <span className="w-2 shrink-0 text-[10px] text-zinc-500">
