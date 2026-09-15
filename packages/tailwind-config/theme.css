@@ -1,0 +1,27 @@
+/* Shared design tokens for every Echo UI Kit surface (web app, side panel, content scripts).
+   Consumers do `@import "tailwindcss"; @import "@echo-ui-kit/tailwind-config/theme.css";` */
+
+/* Tailwind v4's automatic content scan skips anything under node_modules, which is exactly how
+   every consumer sees @echo-ui-kit/ui (a pnpm symlink) — so classes used only inside that
+   package's components (ColorSwatch, PaletteGenerator, ...) never make it into the generated
+   CSS without this. Path is relative to this file, not the consumer, so it stays correct no
+   matter which app imports this stylesheet. */
+@source "../ui/src";
+
+@theme {
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-brand-50: #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-500: #3b82f6;
+  --color-brand-600: #2563eb;
+  --color-brand-900: #1e3a8a;
+
+  /* Chrome's own dark-mode surfaces (chrome://extensions, DevTools, the side panel chrome
+     itself) — not the generic Tailwind zinc scale, which reads noticeably darker/blacker than
+     what surrounds this extension in the browser's actual dark theme. Each tier is a small step
+     lighter, for the same "elevated surface" layering Chrome's own UI uses. */
+  --color-surface: #202124;
+  --color-surface-elevated: #2d2e31;
+  --color-surface-hover: #37383c;
+}
