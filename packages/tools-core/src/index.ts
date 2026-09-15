@@ -4,6 +4,7 @@ export * from "./color/extract";
 export * from "./color/harmony";
 export * from "./color/name";
 export * from "./color/scale";
+export * from "./css/box";
 export * from "./css/easing";
 export * from "./css/filter";
 export * from "./css/gradient";

@@ -1,3 +1,5 @@
+export { BoxEditor } from "./components/BoxEditor";
+export { CollapsibleSection } from "./components/CollapsibleSection";
 export { ColorScaleGrid } from "./components/ColorScaleGrid";
 export { ColorSwatch } from "./components/ColorSwatch";
 export { COLOR_WHEEL_VISUAL_INSET, ColorWheel } from "./components/ColorWheel";
@@ -11,10 +13,10 @@ export { GradientGenerator } from "./components/GradientGenerator";
 export { ImageContrastChecker } from "./components/ImageContrastChecker";
 export { ImageDropZone } from "./components/ImageDropZone";
 export { PaletteGenerator } from "./components/PaletteGenerator";
-export { RadiusPlayground } from "./components/RadiusPlayground";
 export { SavedPalettesView } from "./components/SavedPalettesView";
-export { ShadowGenerator } from "./components/ShadowGenerator";
+export { ShadowLayerControls } from "./components/ShadowLayerControls";
 export { Slider } from "./components/Slider";
+export { SurfaceControls } from "./components/SurfaceControls";
 export { type MenuItem, ThreeDotMenu } from "./components/ThreeDotMenu";
 export { type ToolOption, ToolSwitcher } from "./components/ToolSwitcher";
 export { StorageProvider, useStorage } from "./context/StorageContext";

@@ -1,15 +1,14 @@
 import {
+  BoxEditor,
   ContrastView,
   EasingEditor,
   ExportView,
   FilterPlayground,
   GradientGenerator,
   PaletteGenerator,
-  RadiusPlayground,
   type SavedColor,
   type SavedPalette,
   SavedPalettesView,
-  ShadowGenerator,
   StorageProvider,
   type ToolOption,
   ToolSwitcher,
@@ -37,9 +36,8 @@ type ToolId =
   | "palette"
   | "contrast"
   | "gradient"
-  | "shadow"
+  | "box"
   | "easing"
-  | "radius"
   | "filter"
   | "export"
   | "saved";
@@ -271,16 +269,10 @@ function AppShell() {
         description: "Linear, radial, and conic with live stops",
       },
       {
-        id: "shadow",
-        label: "Shadow",
+        id: "box",
+        label: "Box",
         group: "CSS",
-        description: "Drag to build a layered box-shadow",
-      },
-      {
-        id: "radius",
-        label: "Radius",
-        group: "CSS",
-        description: "Shape corners together or individually",
+        description: "Size, corners, and shadow on one element",
       },
       {
         id: "filter",
@@ -355,11 +347,9 @@ function AppShell() {
         <ContrastView colors={workingColors} />
       </div>
       <div
-        className={
-          tool === "shadow" ? "min-h-0 flex-1 overflow-y-auto" : "hidden"
-        }
+        className={tool === "box" ? "min-h-0 flex-1 overflow-y-auto" : "hidden"}
       >
-        <ShadowGenerator
+        <BoxEditor
           paletteColors={workingColors}
           libraryColors={libraryColors}
         />
@@ -370,13 +360,6 @@ function AppShell() {
         }
       >
         <GradientGenerator paletteColors={workingColors} />
-      </div>
-      <div
-        className={
-          tool === "radius" ? "min-h-0 flex-1 overflow-y-auto" : "hidden"
-        }
-      >
-        <RadiusPlayground />
       </div>
       <div
         className={
