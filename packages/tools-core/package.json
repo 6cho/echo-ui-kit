@@ -1,0 +1,16 @@
+{
+  "name": "@echo-ui-kit/tools-core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "dependencies": {
+    "culori": "^4.0.2"
+  },
+  "devDependencies": {
+    "@echo-ui-kit/tsconfig": "workspace:*",
+    "@types/culori": "^4.0.1",
+    "typescript": "^5.9.3"
+  }
+}
