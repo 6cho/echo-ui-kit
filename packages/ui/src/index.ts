@@ -1,6 +1,7 @@
 export { BoxEditor } from "./components/BoxEditor";
 export { CollapsibleSection } from "./components/CollapsibleSection";
 export { ColorScaleGrid } from "./components/ColorScaleGrid";
+export { ColorStrip } from "./components/ColorStrip";
 export { ColorSwatch } from "./components/ColorSwatch";
 export { COLOR_WHEEL_VISUAL_INSET, ColorWheel } from "./components/ColorWheel";
 export { ContrastGrid } from "./components/ContrastGrid";

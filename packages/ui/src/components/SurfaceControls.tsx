@@ -6,6 +6,7 @@ import {
   solidFill,
 } from "@echo-ui-kit/tools-core";
 import { CollapsibleSection } from "./CollapsibleSection";
+import { ColorStrip } from "./ColorStrip";
 import { DEFAULT_GRADIENT, GradientControls } from "./GradientControls";
 
 // A neutral ramp spanning white to near-black, so the preview can be set up to match wherever the
@@ -46,12 +47,7 @@ function SurfaceSection({
   enabled?: boolean;
   onEnabledChange?: (next: boolean) => void;
 }) {
-  const options = [
-    ...new Set([
-      ...SURFACE_COLORS,
-      ...paletteColors.map((hex) => hex.toLowerCase()),
-    ]),
-  ];
+  const palette = [...new Set(paletteColors.map((hex) => hex.toLowerCase()))];
 
   return (
     <CollapsibleSection
@@ -101,30 +97,30 @@ function SurfaceSection({
       </div>
 
       {fill.kind === "solid" ? (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {options.map((hex) => (
-            <button
-              key={hex}
-              type="button"
-              onClick={() => onChange(solidFill(hex))}
-              title={hex}
-              style={{ backgroundColor: hex }}
-              className={`h-6 w-6 cursor-pointer rounded-md border transition active:scale-90 ${
-                fill.color.toLowerCase() === hex.toLowerCase()
-                  ? "border-brand-500 ring-2 ring-brand-500"
-                  : "border-black/20 dark:border-white/20"
-              }`}
-            />
-          ))}
-          <input
-            type="color"
-            aria-label={`${label} color`}
+        <>
+          <ColorStrip
+            label="Palette"
+            colors={palette}
             value={fill.color}
-            onChange={(e) => onChange(solidFill(e.target.value))}
-            title="Pick any color"
-            className="h-6 w-6 shrink-0 cursor-pointer rounded-md border border-black/20 dark:border-white/20"
+            onChange={(hex) => onChange(solidFill(hex))}
           />
-        </div>
+          <div className="flex items-end gap-2">
+            <ColorStrip
+              label="Neutrals"
+              colors={SURFACE_COLORS}
+              value={fill.color}
+              onChange={(hex) => onChange(solidFill(hex))}
+            />
+            <input
+              type="color"
+              aria-label={`${label} color`}
+              value={fill.color}
+              onChange={(e) => onChange(solidFill(e.target.value))}
+              title="Pick any color"
+              className="h-7 w-7 shrink-0 cursor-pointer rounded-md border border-black/20 dark:border-white/20"
+            />
+          </div>
+        </>
       ) : (
         <GradientControls
           gradient={fill.gradient}

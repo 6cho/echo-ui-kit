@@ -5,6 +5,7 @@ import {
   type ShadowLayer,
   type ShadowPreset,
 } from "@echo-ui-kit/tools-core";
+import { ColorStrip } from "./ColorStrip";
 import { Slider } from "./Slider";
 import { ThreeDotMenu } from "./ThreeDotMenu";
 
@@ -281,34 +282,21 @@ export function ShadowLayerControls({
         onChange={(percent) => updateSelected({ opacity: percent / 100 })}
       />
 
-      <div className="flex flex-col gap-1.5">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-          Shadow color
-        </span>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {colorOptions.map((hex) => (
-            <button
-              key={hex}
-              type="button"
-              onClick={() => updateSelected({ color: hex })}
-              title={hex}
-              style={{ backgroundColor: hex }}
-              className={`h-6 w-6 cursor-pointer rounded-md border transition active:scale-90 ${
-                selected.color.toLowerCase() === hex.toLowerCase()
-                  ? "border-brand-500 ring-2 ring-brand-500"
-                  : "border-black/20 dark:border-white/20"
-              }`}
-            />
-          ))}
-          <input
-            type="color"
-            aria-label="Shadow color"
-            value={selected.color}
-            onChange={(e) => updateSelected({ color: e.target.value })}
-            title="Pick any color"
-            className="h-6 w-6 shrink-0 cursor-pointer rounded-md border border-black/20 dark:border-white/20"
-          />
-        </div>
+      <div className="flex items-end gap-2">
+        <ColorStrip
+          label="Shadow color"
+          colors={colorOptions}
+          value={selected.color}
+          onChange={(color) => updateSelected({ color })}
+        />
+        <input
+          type="color"
+          aria-label="Shadow color"
+          value={selected.color}
+          onChange={(e) => updateSelected({ color: e.target.value })}
+          title="Pick any color"
+          className="h-7 w-7 shrink-0 cursor-pointer rounded-md border border-black/20 dark:border-white/20"
+        />
       </div>
     </>
   );

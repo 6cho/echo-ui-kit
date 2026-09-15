@@ -89,20 +89,6 @@ function AppShell() {
     [workingPalette],
   );
 
-  // Every color the library knows about, flattened and deduped — the shadow tool offers these as
-  // preview surfaces so the backdrop can stand in for a real screen instead of a generic gray.
-  const libraryColors = useMemo(
-    () => [
-      ...new Set([
-        ...savedColors.map((c) => c.hex.toLowerCase()),
-        ...savedPalettes.flatMap((p) =>
-          p.colors.map((hex) => hex.toLowerCase()),
-        ),
-      ]),
-    ],
-    [savedColors, savedPalettes],
-  );
-
   useEffect(() => {
     let cancelled = false;
     Promise.all([
@@ -349,10 +335,7 @@ function AppShell() {
       <div
         className={tool === "box" ? "min-h-0 flex-1 overflow-y-auto" : "hidden"}
       >
-        <BoxEditor
-          paletteColors={workingColors}
-          libraryColors={libraryColors}
-        />
+        <BoxEditor paletteColors={workingColors} />
       </div>
       <div
         className={

@@ -99,13 +99,7 @@ function cursorFor(zone: Zone): string {
  * you'd have to reconcile by hand, and it lets the three gestures share one shape: the middle of
  * the box was inert in the radius tool and is exactly what the shadow tool dragged.
  */
-export function BoxEditor({
-  paletteColors,
-  libraryColors = [],
-}: {
-  paletteColors: string[];
-  libraryColors?: string[];
-}) {
+export function BoxEditor({ paletteColors }: { paletteColors: string[] }) {
   const [corners, setCorners] = useState<RadiusCorners>(DEFAULT_CORNERS);
   const [radiusUnit, setRadiusUnit] = useState<RadiusUnit>("px");
   const [linked, setLinked] = useState(true);
@@ -393,7 +387,7 @@ export function BoxEditor({
       <SurfaceControls
         backdrop={backdrop}
         foreground={foreground}
-        paletteColors={[...paletteColors, ...libraryColors]}
+        paletteColors={paletteColors}
         onBackdropChange={setBackdrop}
         onForegroundChange={setForeground}
         foregroundEnabled={enabled.foreground}
