@@ -1,7 +1,11 @@
 import {
   ContrastView,
+  EasingEditor,
   ExportView,
+  FilterPlayground,
+  GradientGenerator,
   PaletteGenerator,
+  RadiusPlayground,
   type SavedColor,
   type SavedPalette,
   SavedPalettesView,
@@ -29,7 +33,16 @@ const RECENT_HISTORY_LIMIT = 8;
 // palette you actually settled on.
 const WORKING_PALETTE_SETTLE_MS = 1500;
 
-type ToolId = "palette" | "contrast" | "shadow" | "export" | "saved";
+type ToolId =
+  | "palette"
+  | "contrast"
+  | "gradient"
+  | "shadow"
+  | "easing"
+  | "radius"
+  | "filter"
+  | "export"
+  | "saved";
 
 function paletteKey(colors: string[]): string {
   return colors.join(",");
@@ -227,33 +240,64 @@ function AppShell() {
 
   const savedCount = savedPalettes.length + savedColors.length;
 
-  // Descriptions carry live counts so the menu doubles as a status readout — otherwise there's
-  // no way to tell how big the palette or the library is without switching to each tool.
+  // Grouped so the menu stays scannable as the tool count grows, and because the grouping says
+  // something real: "Palette" tools all operate on the working palette, "CSS" tools are
+  // standalone generators that don't care whether a palette exists. Descriptions carry live
+  // counts where there is one, so the menu doubles as a status readout.
   const tools = useMemo<ToolOption[]>(
     () => [
       {
         id: "palette",
         label: "Palette",
+        group: "Palette",
         description: "Build a palette from a color or an image",
       },
       {
         id: "contrast",
         label: "Contrast",
+        group: "Palette",
         description: "Check pairs, or text over a screenshot",
-      },
-      {
-        id: "shadow",
-        label: "Shadow",
-        description: "Drag to build a layered box-shadow",
       },
       {
         id: "export",
         label: "Export",
+        group: "Palette",
         description: "Copy as CSS, Tailwind, SCSS, or JSON",
+      },
+      {
+        id: "gradient",
+        label: "Gradient",
+        group: "CSS",
+        description: "Linear, radial, and conic with live stops",
+      },
+      {
+        id: "shadow",
+        label: "Shadow",
+        group: "CSS",
+        description: "Drag to build a layered box-shadow",
+      },
+      {
+        id: "radius",
+        label: "Radius",
+        group: "CSS",
+        description: "Shape corners together or individually",
+      },
+      {
+        id: "filter",
+        label: "Filter",
+        group: "CSS",
+        description: "Blur, saturate, invert, and the rest",
+      },
+      {
+        id: "easing",
+        label: "Easing",
+        group: "Motion",
+        description: "Drag a cubic-bezier curve and watch it run",
       },
       {
         id: "saved",
         label: "Saved",
+        group: "Library",
         description:
           savedCount > 0
             ? `${savedCount} saved color${savedCount === 1 ? "" : "s"} and palettes`
@@ -319,6 +363,34 @@ function AppShell() {
           paletteColors={workingColors}
           libraryColors={libraryColors}
         />
+      </div>
+      <div
+        className={
+          tool === "gradient" ? "min-h-0 flex-1 overflow-y-auto" : "hidden"
+        }
+      >
+        <GradientGenerator paletteColors={workingColors} />
+      </div>
+      <div
+        className={
+          tool === "radius" ? "min-h-0 flex-1 overflow-y-auto" : "hidden"
+        }
+      >
+        <RadiusPlayground />
+      </div>
+      <div
+        className={
+          tool === "filter" ? "min-h-0 flex-1 overflow-y-auto" : "hidden"
+        }
+      >
+        <FilterPlayground paletteColors={workingColors} />
+      </div>
+      <div
+        className={
+          tool === "easing" ? "min-h-0 flex-1 overflow-y-auto" : "hidden"
+        }
+      >
+        <EasingEditor />
       </div>
       <div
         className={
