@@ -6,6 +6,7 @@ export * from "./color/name";
 export * from "./color/scale";
 export * from "./css/box";
 export * from "./css/easing";
+export * from "./css/fill";
 export * from "./css/filter";
 export * from "./css/gradient";
 export * from "./css/radius";

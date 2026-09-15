@@ -9,6 +9,10 @@ export { CssOutput } from "./components/CssOutput";
 export { EasingEditor } from "./components/EasingEditor";
 export { ExportView } from "./components/ExportView";
 export { FilterPlayground } from "./components/FilterPlayground";
+export {
+  DEFAULT_GRADIENT,
+  GradientControls,
+} from "./components/GradientControls";
 export { GradientGenerator } from "./components/GradientGenerator";
 export { ImageContrastChecker } from "./components/ImageContrastChecker";
 export { ImageDropZone } from "./components/ImageDropZone";

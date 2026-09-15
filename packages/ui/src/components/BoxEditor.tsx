@@ -1,13 +1,16 @@
 import {
+  type Fill,
   formatBoxMarkup,
   formatBoxShadow,
   formatBoxStylesheet,
+  formatFill,
   formatRadius,
   RADIUS_CORNER_KEYS,
   RADIUS_CORNER_LABELS,
   type RadiusCorners,
   type RadiusUnit,
   type ShadowLayer,
+  solidFill,
 } from "@echo-ui-kit/tools-core";
 import { useMemo, useRef, useState } from "react";
 import { CollapsibleSection } from "./CollapsibleSection";
@@ -96,11 +99,11 @@ export function BoxEditor({
   const [selectedLayer, setSelectedLayer] = useState(0);
   const [presetValue, setPresetValue] = useState(DEFAULT_PRESET_VALUE);
 
-  const [backdrop, setBackdrop] = useState<string>(
-    SURFACE_PRESETS.light.backdrop,
+  const [backdrop, setBackdrop] = useState<Fill>(() =>
+    solidFill(SURFACE_PRESETS.light.backdrop),
   );
-  const [foreground, setForeground] = useState<string>(
-    SURFACE_PRESETS.light.foreground,
+  const [foreground, setForeground] = useState<Fill>(() =>
+    solidFill(SURFACE_PRESETS.light.foreground),
   );
   const [outputTab, setOutputTab] = useState("css");
   const [cursor, setCursor] = useState("default");
@@ -285,7 +288,7 @@ export function BoxEditor({
     <div className="flex flex-col gap-4 p-4">
       <div
         className="flex min-h-72 items-center justify-center rounded-lg border border-black/10 p-6 dark:border-white/10"
-        style={{ backgroundColor: backdrop }}
+        style={{ background: formatFill(backdrop) }}
       >
         <div
           ref={boxRef}
@@ -316,7 +319,7 @@ export function BoxEditor({
           style={{
             width: size.width,
             height: size.height,
-            backgroundColor: foreground,
+            background: formatFill(foreground),
             borderRadius: radiusValue,
             boxShadow: shadowValue,
             cursor,

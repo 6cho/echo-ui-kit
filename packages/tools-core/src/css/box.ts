@@ -1,3 +1,4 @@
+import { type Fill, formatFill } from "./fill";
 import { formatRadius, type RadiusCorners, type RadiusUnit } from "./radius";
 import { formatBoxShadow, formatShadowLayer, type ShadowLayer } from "./shadow";
 
@@ -9,8 +10,10 @@ export interface BoxStyle {
   corners: RadiusCorners;
   radiusUnit: RadiusUnit;
   layers: ShadowLayer[];
-  foreground: string;
-  backdrop: string;
+  /** Either can be a gradient — CSS takes both in the same `background` slot, so the editor
+   *  doesn't have to treat them as different kinds of setting. */
+  foreground: Fill;
+  backdrop: Fill;
 }
 
 // Shared between the markup and the stylesheet so the two halves always agree — a class renamed
@@ -38,7 +41,7 @@ export function formatBoxMarkup(): string {
 export function formatBoxStylesheet(style: BoxStyle): string {
   const lines = [
     `.${STAGE_CLASS} {`,
-    `  background: ${style.backdrop.toLowerCase()};`,
+    `  background: ${formatFill(style.backdrop)};`,
     "  display: grid;",
     "  place-items: center;",
     "  min-height: 100vh;",
@@ -48,7 +51,7 @@ export function formatBoxStylesheet(style: BoxStyle): string {
     `.${BOX_CLASS} {`,
     `  width: ${style.width}px;`,
     `  height: ${style.height}px;`,
-    `  background: ${style.foreground.toLowerCase()};`,
+    `  background: ${formatFill(style.foreground)};`,
     `  border-radius: ${formatRadius(style.corners, style.radiusUnit)};`,
   ];
 
