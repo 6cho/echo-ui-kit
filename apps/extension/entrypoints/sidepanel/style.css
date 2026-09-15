@@ -1,0 +1,44 @@
+@import "tailwindcss";
+@import "@echo-ui-kit/tailwind-config/theme.css";
+
+/* Tailwind can't reach a native <input type="color">'s internal pseudo-elements — style them
+   directly so the picker reads as a clean rounded swatch instead of the browser's default chip
+   with its own border and padding. */
+input[type="color"] {
+  padding: 0;
+  border: none;
+  background: none;
+}
+input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+input[type="color"]::-webkit-color-swatch {
+  border: none;
+  /* Matches the rounded-md thumbnail shape used for the image-mode "source" card, so the base
+     color swatch and image thumbnail read as the same kind of control now instead of a circle
+     next to a rounded square. */
+  border-radius: 0.375rem;
+}
+
+/* A medium zinc-gray reads fine against both the light and dark surface colors, so one set of
+   values covers both themes instead of needing a dark: override — the browser default scrollbar
+   is stark white-on-track (or a jarring OS-native chrome) that clashes with either. Track stays
+   transparent so it disappears into the panel background rather than drawing its own gutter. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(161 161 170 / 0.5) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: rgb(161 161 170 / 0.5);
+  border-radius: 9999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(161 161 170 / 0.8);
+}
