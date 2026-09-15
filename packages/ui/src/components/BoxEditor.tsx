@@ -105,6 +105,16 @@ export function BoxEditor({
   const [foreground, setForeground] = useState<Fill>(() =>
     solidFill(SURFACE_PRESETS.light.foreground),
   );
+  // What gets emitted. Radius and shadow are additive, so switching them off removes them from
+  // the preview too — that's exactly what omitting the declaration looks like. Size and
+  // background can't work that way: leaving them out means "whatever the real element already
+  // has", which a preview has no way to show, so the preview keeps rendering them.
+  const [enabled, setEnabled] = useState({
+    size: true,
+    foreground: true,
+    radius: true,
+    shadow: true,
+  });
   const [outputTab, setOutputTab] = useState("css");
   const [cursor, setCursor] = useState("default");
 
@@ -127,22 +137,32 @@ export function BoxEditor({
     () => formatRadius(corners, radiusUnit),
     [corners, radiusUnit],
   );
-  const shadowValue = useMemo(() => formatBoxShadow(layers), [layers]);
+  const shadowValue = useMemo(
+    () => (enabled.shadow ? formatBoxShadow(layers) : "none"),
+    [layers, enabled.shadow],
+  );
 
   const output = useMemo(
     () =>
       outputTab === "html"
         ? formatBoxMarkup()
         : formatBoxStylesheet({
-            width: size.width,
-            height: size.height,
-            corners,
-            radiusUnit,
-            layers,
-            foreground,
+            size: enabled.size ? size : undefined,
+            radius: enabled.radius ? { corners, unit: radiusUnit } : undefined,
+            layers: enabled.shadow ? layers : undefined,
+            foreground: enabled.foreground ? foreground : undefined,
             backdrop,
           }),
-    [outputTab, size, corners, radiusUnit, layers, foreground, backdrop],
+    [
+      outputTab,
+      size,
+      corners,
+      radiusUnit,
+      layers,
+      foreground,
+      backdrop,
+      enabled,
+    ],
   );
 
   const shadowColorOptions = [
@@ -320,7 +340,7 @@ export function BoxEditor({
             width: size.width,
             height: size.height,
             background: formatFill(foreground),
-            borderRadius: radiusValue,
+            borderRadius: enabled.radius ? radiusValue : undefined,
             boxShadow: shadowValue,
             cursor,
           }}
@@ -336,11 +356,17 @@ export function BoxEditor({
         paletteColors={[...paletteColors, ...libraryColors]}
         onBackdropChange={setBackdrop}
         onForegroundChange={setForeground}
+        foregroundEnabled={enabled.foreground}
+        onForegroundEnabledChange={(next) =>
+          setEnabled((c) => ({ ...c, foreground: next }))
+        }
       />
 
       <CollapsibleSection
         title="Size"
         summary={`${size.width} × ${size.height}`}
+        enabled={enabled.size}
+        onToggle={(next) => setEnabled((c) => ({ ...c, size: next }))}
       >
         <Slider
           label="Width"
@@ -362,7 +388,12 @@ export function BoxEditor({
         />
       </CollapsibleSection>
 
-      <CollapsibleSection title="Radius" summary={radiusValue}>
+      <CollapsibleSection
+        title="Radius"
+        summary={radiusValue}
+        enabled={enabled.radius}
+        onToggle={(next) => setEnabled((c) => ({ ...c, radius: next }))}
+      >
         <div className="flex items-center justify-between gap-2">
           <div className="flex gap-1 rounded-md bg-zinc-100 p-0.5 dark:bg-surface-elevated">
             {(["px", "%"] as const).map((id) => (
@@ -422,7 +453,12 @@ export function BoxEditor({
         )}
       </CollapsibleSection>
 
-      <CollapsibleSection title="Shadow" summary={shadowSummary}>
+      <CollapsibleSection
+        title="Shadow"
+        summary={shadowSummary}
+        enabled={enabled.shadow}
+        onToggle={(next) => setEnabled((c) => ({ ...c, shadow: next }))}
+      >
         <ShadowLayerControls
           layers={layers}
           selectedIndex={selectedLayer}

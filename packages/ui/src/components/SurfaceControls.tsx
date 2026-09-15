@@ -36,11 +36,15 @@ function SurfaceSection({
   fill,
   paletteColors,
   onChange,
+  enabled,
+  onEnabledChange,
 }: {
   label: string;
   fill: Fill;
   paletteColors: string[];
   onChange: (fill: Fill) => void;
+  enabled?: boolean;
+  onEnabledChange?: (next: boolean) => void;
 }) {
   const options = [
     ...new Set([
@@ -50,7 +54,12 @@ function SurfaceSection({
   ];
 
   return (
-    <CollapsibleSection title={label} summary={describeFill(fill)}>
+    <CollapsibleSection
+      title={label}
+      summary={describeFill(fill)}
+      enabled={enabled}
+      onToggle={onEnabledChange}
+    >
       <div className="flex items-center gap-2">
         <div className="flex flex-1 gap-1 rounded-md bg-zinc-100 p-0.5 dark:bg-surface-elevated">
           {(["solid", "gradient"] as const).map((kind) => (
@@ -141,6 +150,8 @@ export function SurfaceControls({
   paletteColors,
   onBackdropChange,
   onForegroundChange,
+  foregroundEnabled,
+  onForegroundEnabledChange,
 }: {
   backdrop: Fill;
   foreground: Fill;
@@ -149,6 +160,10 @@ export function SurfaceControls({
   paletteColors: string[];
   onBackdropChange: (fill: Fill) => void;
   onForegroundChange: (fill: Fill) => void;
+  /** Whether the element's own background is emitted at all. The backdrop has no switch — it's
+   *  the surface being designed against, not a property of the element. */
+  foregroundEnabled?: boolean;
+  onForegroundEnabledChange?: (next: boolean) => void;
 }) {
   const activePreset = (
     Object.keys(SURFACE_PRESETS) as SurfacePresetName[]
@@ -193,6 +208,8 @@ export function SurfaceControls({
         fill={foreground}
         paletteColors={paletteColors}
         onChange={onForegroundChange}
+        enabled={foregroundEnabled}
+        onEnabledChange={onForegroundEnabledChange}
       />
     </>
   );

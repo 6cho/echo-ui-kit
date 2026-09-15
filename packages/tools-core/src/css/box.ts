@@ -1,18 +1,22 @@
 import { type Fill, formatFill } from "./fill";
 import { formatRadius, type RadiusCorners, type RadiusUnit } from "./radius";
-import { formatBoxShadow, formatShadowLayer, type ShadowLayer } from "./shadow";
+import { formatShadowLayer, type ShadowLayer } from "./shadow";
 
-/** Everything the box editor can set on a single element. Radius and shadow live on the same
- *  shape in practice, so they're emitted as one rule rather than two you'd merge by hand. */
+/**
+ * Everything the box editor can set on a single element. Every property except the stage backdrop
+ * is optional, because not every element needs all of them — a component that already gets its
+ * size from a layout shouldn't have width and height forced into the rule you paste.
+ *
+ * Grouped by what's switched on and off together: width and height go as a pair, and the radius
+ * unit is meaningless without corners to apply it to.
+ */
 export interface BoxStyle {
-  width: number;
-  height: number;
-  corners: RadiusCorners;
-  radiusUnit: RadiusUnit;
-  layers: ShadowLayer[];
-  /** Either can be a gradient — CSS takes both in the same `background` slot, so the editor
-   *  doesn't have to treat them as different kinds of setting. */
-  foreground: Fill;
+  size?: { width: number; height: number };
+  radius?: { corners: RadiusCorners; unit: RadiusUnit };
+  layers?: ShadowLayer[];
+  foreground?: Fill;
+  /** The stage behind the element. Not a property of the element itself — it's the surface being
+   *  designed against — so it's always present. */
   backdrop: Fill;
 }
 
@@ -34,9 +38,9 @@ export function formatBoxMarkup(): string {
  * The stylesheet half: real rules against real class names, so it drops straight into a stylesheet
  * (or a playground's CSS pane) beside the markup from formatBoxMarkup.
  *
- * Carries the box's size and background as well as the radius and shadow, because a shadow needs
- * something to hang off — an element with no dimensions and no fill renders nothing at all, and a
- * radius is invisible without a background to cut the corner out of.
+ * Only emits what's actually switched on. A rule listing properties you didn't want is worse than
+ * one that's short — you'd have to delete them by hand at the other end, and every one you missed
+ * would override whatever the real element already had.
  */
 export function formatBoxStylesheet(style: BoxStyle): string {
   const lines = [
@@ -49,22 +53,30 @@ export function formatBoxStylesheet(style: BoxStyle): string {
     "}",
     "",
     `.${BOX_CLASS} {`,
-    `  width: ${style.width}px;`,
-    `  height: ${style.height}px;`,
-    `  background: ${formatFill(style.foreground)};`,
-    `  border-radius: ${formatRadius(style.corners, style.radiusUnit)};`,
   ];
 
-  if (style.layers.length === 1) {
+  if (style.size) {
+    lines.push(`  width: ${style.size.width}px;`);
+    lines.push(`  height: ${style.size.height}px;`);
+  }
+  if (style.foreground) {
+    lines.push(`  background: ${formatFill(style.foreground)};`);
+  }
+  if (style.radius) {
     lines.push(
-      `  box-shadow: ${formatShadowLayer(style.layers[0] as ShadowLayer)};`,
+      `  border-radius: ${formatRadius(style.radius.corners, style.radius.unit)};`,
     );
-  } else if (style.layers.length > 1) {
+  }
+
+  const layers = style.layers ?? [];
+  if (layers.length === 1) {
+    lines.push(`  box-shadow: ${formatShadowLayer(layers[0] as ShadowLayer)};`);
+  } else if (layers.length > 1) {
     // Wrapped across lines because a multi-layer shadow on one line is unreadable, and that's
     // exactly the case where you most want to read it.
     lines.push("  box-shadow:");
     lines.push(
-      style.layers
+      layers
         .map((layer) => `    ${formatShadowLayer(layer)}`)
         .join(",\n")
         .concat(";"),
@@ -73,9 +85,4 @@ export function formatBoxStylesheet(style: BoxStyle): string {
 
   lines.push("}");
   return lines.join("\n");
-}
-
-/** The shadow value on its own, for assigning to a live preview's style. */
-export function formatBoxShadowValue(layers: ShadowLayer[]): string {
-  return formatBoxShadow(layers);
 }
