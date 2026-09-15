@@ -13,11 +13,8 @@ import { Slider } from "./Slider";
 const MAX_PX = 100;
 const MAX_PERCENT = 50;
 
-// Fixed rather than fluid so handle positions can be computed straight from the radius without
-// measuring first. The drag math still reads the live rect, so this stays correct even if the
-// box is ever scaled by a parent.
-const BOX_WIDTH = 180;
-const BOX_HEIGHT = 128;
+const INITIAL_BOX_WIDTH = 200;
+const INITIAL_BOX_HEIGHT = 140;
 
 const DEFAULT_CORNERS: RadiusCorners = {
   topLeft: 12,
@@ -26,8 +23,8 @@ const DEFAULT_CORNERS: RadiusCorners = {
   bottomLeft: 12,
 };
 
-const RIGHT_CORNERS: (keyof RadiusCorners)[] = ["topRight", "bottomRight"];
-const BOTTOM_CORNERS: (keyof RadiusCorners)[] = ["bottomRight", "bottomLeft"];
+const LEFT_CORNERS: (keyof RadiusCorners)[] = ["topLeft", "bottomLeft"];
+const TOP_CORNERS: (keyof RadiusCorners)[] = ["topLeft", "topRight"];
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -39,7 +36,15 @@ export function RadiusPlayground() {
   const [linked, setLinked] = useState(true);
 
   const boxRef = useRef<HTMLDivElement>(null);
-  const draggingRef = useRef<keyof RadiusCorners | null>(null);
+  // Captures which corner was grabbed and what it measured at the time, so the drag applies a
+  // delta. Tracking the absolute pointer position instead would snap the radius to whatever
+  // number happened to sit under your cursor the instant you pressed.
+  const dragRef = useRef<{
+    corner: keyof RadiusCorners;
+    startRadius: number;
+    pointerX: number;
+    pointerY: number;
+  } | null>(null);
 
   const value = useMemo(() => formatRadius(corners, unit), [corners, unit]);
   const css = useMemo(() => formatRadiusCss(corners, unit), [corners, unit]);
@@ -67,81 +72,78 @@ export function RadiusPlayground() {
     setUnit(nextUnit);
   }
 
-  /** Where a corner's arc meets its horizontal edge — which is where the handle sits, and the
-   *  distance the drag reads back. */
-  function handleOffsetPx(key: keyof RadiusCorners): number {
-    const raw = unit === "px" ? corners[key] : (corners[key] / 100) * BOX_WIDTH;
-    return clamp(raw, 0, BOX_WIDTH / 2);
-  }
-
-  function radiusFromPointer(
-    key: keyof RadiusCorners,
+  /** Which corner the pointer is closest to — the quadrant it pressed in. With no handles on the
+   *  shape, this is what tells an unlinked drag which corner you meant. */
+  function grabbedCorner(
     clientX: number,
-  ): number | null {
+    clientY: number,
+  ): keyof RadiusCorners {
     const rect = boxRef.current?.getBoundingClientRect();
-    if (!rect || rect.width === 0) return null;
-    // Distance from *this corner's* side, so both left and right handles move outward-to-inward
-    // in the direction you'd expect rather than one of them running backwards.
-    const fromEdge = RIGHT_CORNERS.includes(key)
-      ? rect.right - clientX
-      : clientX - rect.left;
-    // Capped at the midpoint: past it the handle would cross onto the opposite corner's half of
-    // the edge, and CSS would be clamping the rendered radius anyway.
-    const px = clamp(fromEdge, 0, rect.width / 2);
-    return unit === "px"
-      ? Math.round(clamp(px, 0, MAX_PX))
-      : Math.round(clamp((px / rect.width) * 100, 0, MAX_PERCENT));
+    if (!rect) return "topLeft";
+    const isRight = clientX > rect.left + rect.width / 2;
+    const isBottom = clientY > rect.top + rect.height / 2;
+    if (isBottom) return isRight ? "bottomRight" : "bottomLeft";
+    return isRight ? "topRight" : "topLeft";
   }
 
   return (
     <div className="flex flex-col gap-4 p-4">
-      <div className="flex h-48 items-center justify-center rounded-lg border border-black/10 bg-zinc-100 dark:border-white/10 dark:bg-surface-elevated">
+      <div className="flex min-h-56 items-center justify-center rounded-lg border border-black/10 bg-zinc-100 p-4 dark:border-white/10 dark:bg-surface-elevated">
+        {/* The resize grip lives in this wrapper's padding rather than on the shape itself, so
+            grabbing it can't also start a radius drag. Native `resize` needs a non-visible
+            overflow to show up at all. */}
         <div
-          ref={boxRef}
-          className="relative touch-none select-none"
-          style={{ width: BOX_WIDTH, height: BOX_HEIGHT }}
-          onPointerMove={(e) => {
-            const key = draggingRef.current;
-            if (!key) return;
-            const next = radiusFromPointer(key, e.clientX);
-            if (next !== null) updateCorner(key, next);
-          }}
-          onPointerUp={(e) => {
-            draggingRef.current = null;
-            e.currentTarget.releasePointerCapture(e.pointerId);
+          className="resize overflow-hidden pr-4 pb-4"
+          style={{
+            width: INITIAL_BOX_WIDTH,
+            height: INITIAL_BOX_HEIGHT,
+            minWidth: 80,
+            minHeight: 60,
+            maxWidth: "100%",
+            maxHeight: 320,
           }}
         >
           <div
-            className="h-full w-full bg-brand-500"
+            ref={boxRef}
+            onPointerDown={(e) => {
+              const corner = grabbedCorner(e.clientX, e.clientY);
+              dragRef.current = {
+                corner,
+                startRadius: corners[corner],
+                pointerX: e.clientX,
+                pointerY: e.clientY,
+              };
+              e.currentTarget.setPointerCapture(e.pointerId);
+            }}
+            onPointerMove={(e) => {
+              const drag = dragRef.current;
+              if (!drag) return;
+              // Projected toward the middle of the box, so "pull it inward to round it" holds for
+              // every corner. Without the per-corner signs, the right-hand corners would round as
+              // you dragged away from them, which reads as broken immediately.
+              const signX = LEFT_CORNERS.includes(drag.corner) ? 1 : -1;
+              const signY = TOP_CORNERS.includes(drag.corner) ? 1 : -1;
+              const delta =
+                ((e.clientX - drag.pointerX) * signX +
+                  (e.clientY - drag.pointerY) * signY) /
+                2;
+              updateCorner(
+                drag.corner,
+                clamp(Math.round(drag.startRadius + delta), 0, max),
+              );
+            }}
+            onPointerUp={(e) => {
+              dragRef.current = null;
+              e.currentTarget.releasePointerCapture(e.pointerId);
+            }}
+            className="h-full w-full cursor-grab touch-none select-none bg-brand-500 active:cursor-grabbing"
             style={{ borderRadius: value }}
           />
-
-          {RADIUS_CORNER_KEYS.map((key) => {
-            const offset = handleOffsetPx(key);
-            const isRight = RIGHT_CORNERS.includes(key);
-            const isBottom = BOTTOM_CORNERS.includes(key);
-            return (
-              <button
-                key={key}
-                type="button"
-                aria-label={`${RADIUS_CORNER_LABELS[key]} radius`}
-                title={`${RADIUS_CORNER_LABELS[key]} — drag to adjust`}
-                onPointerDown={(e) => {
-                  draggingRef.current = key;
-                  boxRef.current?.setPointerCapture(e.pointerId);
-                }}
-                className="-translate-x-1/2 -translate-y-1/2 absolute h-3.5 w-3.5 cursor-grab rounded-full border-2 border-brand-600 bg-white shadow-sm transition active:cursor-grabbing active:scale-90 dark:bg-zinc-800"
-                style={{
-                  left: isRight ? BOX_WIDTH - offset : offset,
-                  top: isBottom ? BOX_HEIGHT : 0,
-                }}
-              />
-            );
-          })}
         </div>
       </div>
       <p className="-mt-2 text-[11px] text-zinc-500">
-        Drag a corner handle, or use the sliders below.
+        Drag the shape inward to round the nearest corner. Drag the bottom-right
+        grip to resize.
       </p>
 
       <div className="flex items-center justify-between gap-2">
