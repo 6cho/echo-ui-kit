@@ -21,7 +21,10 @@ export function ColorStrip({
   if (colors.length === 0) return null;
 
   return (
-    <div className="flex min-w-0 flex-col gap-1">
+    // flex-1 so a strip sharing a row with the color picker takes the remaining width instead of
+    // collapsing toward zero — its segments are all flex-1, so there's no intrinsic width to fall
+    // back on. Harmless in a column, where a flex child stretches across regardless.
+    <div className="flex min-w-0 flex-1 flex-col gap-1">
       {label && <span className="text-[11px] text-zinc-500">{label}</span>}
       <div className="flex h-7 overflow-hidden rounded-md border border-black/10 dark:border-white/10">
         {colors.map((hex) => (

@@ -2,7 +2,6 @@ import {
   describeFill,
   type Fill,
   fillPreviewColor,
-  formatFill,
   solidFill,
 } from "@echo-ui-kit/tools-core";
 import { CollapsibleSection } from "./CollapsibleSection";
@@ -56,44 +55,38 @@ function SurfaceSection({
       enabled={enabled}
       onToggle={onEnabledChange}
     >
-      <div className="flex items-center gap-2">
-        <div className="flex flex-1 gap-1 rounded-md bg-zinc-100 p-0.5 dark:bg-surface-elevated">
-          {(["solid", "gradient"] as const).map((kind) => (
-            <button
-              key={kind}
-              type="button"
-              onClick={() =>
-                onChange(
-                  kind === "solid"
-                    ? // Seeded from the gradient's own first stop rather than a fixed default, so
-                      // switching back and forth doesn't discard the color you'd settled on.
-                      solidFill(fillPreviewColor(fill))
-                    : {
-                        kind: "gradient",
-                        gradient: {
-                          ...DEFAULT_GRADIENT,
-                          stops: [
-                            { color: fillPreviewColor(fill), position: 0 },
-                            { color: "#8b5cf6", position: 100 },
-                          ],
-                        },
+      <div className="flex gap-1 rounded-md bg-zinc-100 p-0.5 dark:bg-surface-elevated">
+        {(["solid", "gradient"] as const).map((kind) => (
+          <button
+            key={kind}
+            type="button"
+            onClick={() =>
+              onChange(
+                kind === "solid"
+                  ? // Seeded from the gradient's own first stop rather than a fixed default, so
+                    // switching back and forth doesn't discard the color you'd settled on.
+                    solidFill(fillPreviewColor(fill))
+                  : {
+                      kind: "gradient",
+                      gradient: {
+                        ...DEFAULT_GRADIENT,
+                        stops: [
+                          { color: fillPreviewColor(fill), position: 0 },
+                          { color: "#8b5cf6", position: 100 },
+                        ],
                       },
-                )
-              }
-              className={`flex-1 cursor-pointer rounded px-2 py-0.5 text-[11px] font-medium capitalize transition active:scale-95 ${
-                fill.kind === kind
-                  ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white"
-                  : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
-              }`}
-            >
-              {kind}
-            </button>
-          ))}
-        </div>
-        <span
-          className="h-6 w-10 shrink-0 rounded-md border border-black/20 dark:border-white/20"
-          style={{ background: formatFill(fill) }}
-        />
+                    },
+              )
+            }
+            className={`flex-1 cursor-pointer rounded px-2 py-0.5 text-[11px] font-medium capitalize transition active:scale-95 ${
+              fill.kind === kind
+                ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white"
+                : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+            }`}
+          >
+            {kind}
+          </button>
+        ))}
       </div>
 
       {fill.kind === "solid" ? (
