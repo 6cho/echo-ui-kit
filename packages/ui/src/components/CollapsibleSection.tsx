@@ -44,6 +44,7 @@ function Switch({
 export function CollapsibleSection({
   title,
   summary,
+  headerAction,
   defaultOpen = false,
   enabled = true,
   onToggle,
@@ -51,6 +52,10 @@ export function CollapsibleSection({
 }: {
   title: string;
   summary?: string;
+  /** A control pinned to the header, beside the switch — for the one action worth reaching
+   *  without expanding the section. Must not be a plain button's child, so it sits as a sibling
+   *  of the expand button rather than inside it. */
+  headerAction?: ReactNode;
   defaultOpen?: boolean;
   /** Only meaningful alongside onToggle; without it the section is always on. */
   enabled?: boolean;
@@ -99,6 +104,7 @@ export function CollapsibleSection({
             {enabled ? summary : "off"}
           </span>
         </button>
+        {enabled && headerAction}
         {onToggle && (
           <Switch checked={enabled} label={title} onChange={onToggle} />
         )}

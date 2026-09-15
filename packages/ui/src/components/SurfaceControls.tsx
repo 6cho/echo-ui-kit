@@ -54,6 +54,18 @@ function SurfaceSection({
       summary={describeFill(fill)}
       enabled={enabled}
       onToggle={onEnabledChange}
+      headerAction={
+        fill.kind === "solid" ? (
+          <input
+            type="color"
+            aria-label={`${label} color`}
+            value={fill.color}
+            onChange={(e) => onChange(solidFill(e.target.value))}
+            title="Pick any color"
+            className="h-5 w-5 shrink-0 cursor-pointer rounded border border-black/20 dark:border-white/20"
+          />
+        ) : undefined
+      }
     >
       <div className="flex gap-1 rounded-md bg-zinc-100 p-0.5 dark:bg-surface-elevated">
         {(["solid", "gradient"] as const).map((kind) => (
@@ -97,22 +109,12 @@ function SurfaceSection({
             value={fill.color}
             onChange={(hex) => onChange(solidFill(hex))}
           />
-          <div className="flex items-end gap-2">
-            <ColorStrip
-              label="Neutrals"
-              colors={SURFACE_COLORS}
-              value={fill.color}
-              onChange={(hex) => onChange(solidFill(hex))}
-            />
-            <input
-              type="color"
-              aria-label={`${label} color`}
-              value={fill.color}
-              onChange={(e) => onChange(solidFill(e.target.value))}
-              title="Pick any color"
-              className="h-7 w-7 shrink-0 cursor-pointer rounded-md border border-black/20 dark:border-white/20"
-            />
-          </div>
+          <ColorStrip
+            label="Neutrals"
+            colors={SURFACE_COLORS}
+            value={fill.color}
+            onChange={(hex) => onChange(solidFill(hex))}
+          />
         </>
       ) : (
         <GradientControls
