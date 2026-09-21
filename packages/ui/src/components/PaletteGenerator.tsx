@@ -20,6 +20,7 @@ import type { SavedPalette, WorkingPalette } from "../types/palette";
 import { ColorScaleGrid } from "./ColorScaleGrid";
 import { COLOR_WHEEL_VISUAL_INSET, ColorWheel } from "./ColorWheel";
 import { ImageDropZone } from "./ImageDropZone";
+import { PalettePreviewBar } from "./PalettePreviewBar";
 import { Slider } from "./Slider";
 import { ThreeDotMenu } from "./ThreeDotMenu";
 
@@ -1072,29 +1073,12 @@ export function PaletteGenerator({
             }
           />
         )}
-        {/* Same idea as the selected-color card above it: a live preview of the thing you're
-            about to save sitting right next to the button that saves it, instead of a plain
-            button with no preview of its own. */}
-        <div className="flex items-center gap-3 rounded-lg border border-black/10 p-2 dark:border-white/10">
-          <div className="flex h-8 flex-1 overflow-hidden rounded-md border border-black/10 dark:border-white/10">
-            {displaySelectedColors.map((hex) => (
-              <div
-                key={hex}
-                className="min-w-0 flex-1"
-                style={{ backgroundColor: hex }}
-              />
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={savePalette}
-            disabled={selectedColors.length === 0}
-            title="Save this palette"
-            className="shrink-0 cursor-pointer rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100"
-          >
-            {saved ? "Saved" : "Save palette"}
-          </button>
-        </div>
+        <PalettePreviewBar
+          colors={displaySelectedColors}
+          actionLabel={saved ? "Saved" : "Save palette"}
+          onAction={savePalette}
+          title="Save this palette"
+        />
       </div>
     </div>
   );

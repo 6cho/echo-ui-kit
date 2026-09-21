@@ -19,6 +19,7 @@ export { ImageContrastChecker } from "./components/ImageContrastChecker";
 export { ImageDropZone } from "./components/ImageDropZone";
 export { PageToolsView } from "./components/PageToolsView";
 export { PaletteGenerator } from "./components/PaletteGenerator";
+export { PalettePreviewBar } from "./components/PalettePreviewBar";
 export { SavedPalettesView } from "./components/SavedPalettesView";
 export { ShadowLayerControls } from "./components/ShadowLayerControls";
 export { Slider } from "./components/Slider";
