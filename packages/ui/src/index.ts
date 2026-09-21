@@ -1,4 +1,5 @@
 export { BoxEditor } from "./components/BoxEditor";
+export { Checkbox } from "./components/Checkbox";
 export { CollapsibleSection } from "./components/CollapsibleSection";
 export { ColorScaleGrid } from "./components/ColorScaleGrid";
 export { ColorStrip } from "./components/ColorStrip";

@@ -13,6 +13,7 @@ import {
   solidFill,
 } from "@echo-ui-kit/tools-core";
 import { useMemo, useRef, useState } from "react";
+import { Checkbox } from "./Checkbox";
 import { CollapsibleSection } from "./CollapsibleSection";
 import { CssOutput } from "./CssOutput";
 import {
@@ -443,17 +444,13 @@ export function BoxEditor({ paletteColors }: { paletteColors: string[] }) {
               </button>
             ))}
           </div>
-          <label className="flex cursor-pointer items-center gap-2">
-            <input
-              type="checkbox"
-              checked={linked}
-              onChange={(e) => setLinked(e.target.checked)}
-              className="h-3.5 w-3.5 cursor-pointer accent-brand-600"
-            />
-            <span className="text-xs text-zinc-700 dark:text-zinc-300">
-              Link corners
-            </span>
-          </label>
+          <div className="shrink-0">
+            <Checkbox checked={linked} onChange={setLinked}>
+              <span className="whitespace-nowrap text-xs text-zinc-700 dark:text-zinc-300">
+                Link corners
+              </span>
+            </Checkbox>
+          </div>
         </div>
 
         {/* Linked mode shows one slider rather than four that move in lockstep — four identical

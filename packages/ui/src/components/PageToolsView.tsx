@@ -5,6 +5,7 @@ import type {
 } from "@echo-ui-kit/adapters";
 import { useState } from "react";
 import { usePageInspector } from "../context/PageContext";
+import { Checkbox } from "./Checkbox";
 import { CollapsibleSection } from "./CollapsibleSection";
 import { PalettePreviewBar } from "./PalettePreviewBar";
 
@@ -134,25 +135,25 @@ export function PageToolsView({
               questions and compose usefully — outlines give you the page's structure while the
               inspector explains whatever you point at. */}
           {OVERLAY_TOGGLES.map(({ key, label, hint }) => (
-            <label
+            <div
               key={key}
-              className="flex cursor-pointer items-start gap-2 rounded-md border border-black/10 px-2.5 py-2 transition hover:bg-zinc-100 dark:border-white/10 dark:hover:bg-surface-elevated"
+              className="rounded-md border border-black/10 px-2.5 py-2 transition hover:bg-zinc-100 dark:border-white/10 dark:hover:bg-surface-elevated"
             >
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={overlay[key]}
-                onChange={(e) => toggleOverlay(key, e.target.checked)}
-                className="mt-0.5 h-3.5 w-3.5 shrink-0 cursor-pointer accent-brand-600"
-              />
-              <span className="flex min-w-0 flex-col">
-                <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                  {label}
+                onChange={(next) => toggleOverlay(key, next)}
+                align="start"
+              >
+                <span className="flex min-w-0 flex-col">
+                  <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                    {label}
+                  </span>
+                  <span className="text-[11px] leading-snug text-zinc-500">
+                    {hint}
+                  </span>
                 </span>
-                <span className="text-[11px] leading-snug text-zinc-500">
-                  {hint}
-                </span>
-              </span>
-            </label>
+              </Checkbox>
+            </div>
           ))}
 
           {overlay.inspect && (
