@@ -73,4 +73,25 @@ export const chromePageInspector: PageInspector = {
   async setOverlay(options) {
     await send({ type: "setOverlay", options });
   },
+  onPageChange(listener) {
+    // "complete" rather than every update, because onUpdated also fires for favicon and title
+    // changes and for each loading step — re-scanning on all of them would mean scanning a
+    // half-built page several times per navigation.
+    // Typed off the listener signature itself rather than by naming the payload type, which the
+    // chrome typings spell differently across versions.
+    const handleUpdated: Parameters<
+      typeof chrome.tabs.onUpdated.addListener
+    >[0] = (_tabId, changeInfo, tab) => {
+      if (changeInfo.status === "complete" && tab.active) listener();
+    };
+    // Switching tabs changes the page under inspection just as much as navigating does.
+    const handleActivated = () => listener();
+
+    chrome.tabs.onUpdated.addListener(handleUpdated);
+    chrome.tabs.onActivated.addListener(handleActivated);
+    return () => {
+      chrome.tabs.onUpdated.removeListener(handleUpdated);
+      chrome.tabs.onActivated.removeListener(handleActivated);
+    };
+  },
 };

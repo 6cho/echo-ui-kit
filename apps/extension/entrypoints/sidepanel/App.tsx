@@ -390,7 +390,10 @@ function AppShell() {
           tool === "page" ? "min-h-0 flex-1 overflow-y-auto" : "hidden"
         }
       >
-        <PageToolsView onUseColors={handleUsePageColors} />
+        <PageToolsView
+          isActive={tool === "page"}
+          onUseColors={handleUsePageColors}
+        />
       </div>
       <div
         className={

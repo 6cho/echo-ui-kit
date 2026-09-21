@@ -55,4 +55,13 @@ export interface PageInspector {
   extractColors(): Promise<PageColor[]>;
   extractFonts(): Promise<PageFont[]>;
   setOverlay(options: OverlayOptions): Promise<void>;
+  /**
+   * Fires whenever the page being inspected changes — a navigation, or a switch to another tab.
+   *
+   * Necessary because everything else here is a snapshot. A content script dies with the document
+   * that hosted it, so an overlay silently disappears on navigation while the control that turned
+   * it on still claims it's active, and a set of scanned colors goes on describing a page the user
+   * left minutes ago. Returns its own unsubscribe.
+   */
+  onPageChange(listener: () => void): () => void;
 }

@@ -3,7 +3,7 @@ import type {
   PageColor,
   PageFont,
 } from "@echo-ui-kit/adapters";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePageInspector } from "../context/PageContext";
 import { Checkbox } from "./Checkbox";
 import { CollapsibleSection } from "./CollapsibleSection";
@@ -41,8 +41,12 @@ const BAND_LEGEND = [
  * script sits idle until one of these buttons asks it something.
  */
 export function PageToolsView({
+  isActive = true,
   onUseColors,
 }: {
+  /** Whether this tool is the one on screen. The panel keeps every tool mounted so their state
+   *  survives switching, which would otherwise mean re-scanning pages nobody is looking at. */
+  isActive?: boolean;
   /** Hands extracted colors to the palette tool, which is the point of pulling them off a page
    *  in the first place. */
   onUseColors?: (hexes: string[]) => void;
@@ -60,20 +64,6 @@ export function PageToolsView({
   const [fonts, setFonts] = useState<PageFont[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  if (!inspector) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-1.5 p-4 text-center">
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Page tools need the extension
-        </p>
-        <p className="max-w-[220px] text-xs text-zinc-500">
-          Inspecting a page means running inside it, which only the browser
-          extension can do.
-        </p>
-      </div>
-    );
-  }
 
   async function run<T>(
     key: string,
@@ -106,6 +96,61 @@ export function PageToolsView({
     }
   }
 
+  // Read inside the refresh effect below, which must not re-subscribe every time the overlay
+  // changes — a ref keeps the current value reachable without becoming a dependency.
+  const overlayRef = useRef(overlay);
+  useEffect(() => {
+    overlayRef.current = overlay;
+  }, [overlay]);
+
+  /**
+   * Brings the panel back in line with whatever page is now in front of it.
+   *
+   * Both halves matter. The scans are re-run because their results describe a document that no
+   * longer exists. The overlays are re-applied because the content script died with that document
+   * and took them with it — without this the checkboxes would stay ticked over a page with no
+   * overlay on it, which is worse than them simply switching off.
+   */
+  useEffect(() => {
+    if (!isActive || !inspector) return;
+
+    let cancelled = false;
+    async function refresh() {
+      if (!inspector) return;
+      try {
+        const active = overlayRef.current;
+        if (active.outline || active.inspect) {
+          await inspector.setOverlay(active);
+        }
+        const [foundColors, foundFonts] = await Promise.all([
+          inspector.extractColors(),
+          inspector.extractFonts(),
+        ]);
+        if (cancelled) return;
+        setColors(foundColors);
+        setKeptHexes(foundColors.map((c) => c.hex));
+        setFonts(foundFonts);
+        setError(null);
+      } catch (caught) {
+        if (cancelled) return;
+        // Surfaced rather than swallowed: navigating to a page that can't be inspected is the
+        // usual cause, and saying so explains why the panel just emptied.
+        setColors(null);
+        setFonts(null);
+        setKeptHexes([]);
+        setOverlay({ outline: false, inspect: false });
+        setError(caught instanceof Error ? caught.message : "That didn't work");
+      }
+    }
+
+    refresh();
+    const unsubscribe = inspector.onPageChange(refresh);
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [isActive, inspector]);
+
   function toggleColor(hex: string) {
     setKeptHexes((current) =>
       current.includes(hex)
@@ -115,6 +160,22 @@ export function PageToolsView({
           (colors ?? [])
             .map((c) => c.hex)
             .filter((h) => h === hex || current.includes(h)),
+    );
+  }
+
+  // Below every hook, not above them: React requires the same hooks to run in the same order on
+  // every render, and an early return before them would skip the ones that follow.
+  if (!inspector) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-1.5 p-4 text-center">
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          Page tools need the extension
+        </p>
+        <p className="max-w-[220px] text-xs text-zinc-500">
+          Inspecting a page means running inside it, which only the browser
+          extension can do.
+        </p>
+      </div>
     );
   }
 
@@ -176,7 +237,7 @@ export function PageToolsView({
 
         <CollapsibleSection
           title="Colors"
-          summary={colors ? `${colors.length} found` : "not scanned"}
+          summary={colors ? `${colors.length} found` : "nothing yet"}
           defaultOpen
         >
           <button
@@ -196,7 +257,7 @@ export function PageToolsView({
             disabled={busy === "colors"}
             className="cursor-pointer self-start rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {busy === "colors" ? "Scanning…" : "Scan page colors"}
+            {busy === "colors" ? "Scanning…" : "Rescan colors"}
           </button>
 
           {colors && colors.length > 0 && (
@@ -242,7 +303,7 @@ export function PageToolsView({
 
         <CollapsibleSection
           title="Fonts"
-          summary={fonts ? `${fonts.length} found` : "not scanned"}
+          summary={fonts ? `${fonts.length} found` : "nothing yet"}
         >
           <button
             type="button"
@@ -252,7 +313,7 @@ export function PageToolsView({
             disabled={busy === "fonts"}
             className="cursor-pointer self-start rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {busy === "fonts" ? "Scanning…" : "Scan page fonts"}
+            {busy === "fonts" ? "Scanning…" : "Rescan fonts"}
           </button>
 
           {fonts?.map((font) => (
