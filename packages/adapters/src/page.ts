@@ -20,8 +20,17 @@ export interface PageFont {
   weights: number[];
 }
 
-/** What the box-model overlay is doing, if anything. */
-export type OverlayMode = "off" | "outline" | "inspect";
+/**
+ * Which overlays are drawn on the page. Independent flags rather than one mode, because they
+ * answer different questions and are genuinely useful together: outlines show you the whole
+ * page's structure at once, while the inspector explains the single element under your cursor.
+ */
+export interface OverlayOptions {
+  /** Outline every element, color-coded by kind. */
+  outline: boolean;
+  /** Margin/border/padding/content bands for whatever is hovered. */
+  inspect: boolean;
+}
 
 export interface PageSummary {
   title: string;
@@ -45,5 +54,5 @@ export interface PageInspector {
   summarize(): Promise<PageSummary>;
   extractColors(): Promise<PageColor[]>;
   extractFonts(): Promise<PageFont[]>;
-  setOverlay(mode: OverlayMode): Promise<void>;
+  setOverlay(options: OverlayOptions): Promise<void>;
 }

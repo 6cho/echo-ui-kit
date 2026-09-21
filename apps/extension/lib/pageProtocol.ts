@@ -1,5 +1,5 @@
 import type {
-  OverlayMode,
+  OverlayOptions,
   PageColor,
   PageFont,
   PageSummary,
@@ -16,7 +16,7 @@ export type PageRequest =
   | { type: "summarize" }
   | { type: "extractColors" }
   | { type: "extractFonts" }
-  | { type: "setOverlay"; mode: OverlayMode };
+  | { type: "setOverlay"; options: OverlayOptions };
 
 export type PageResponse =
   | { ok: true; type: "summarize"; summary: PageSummary }

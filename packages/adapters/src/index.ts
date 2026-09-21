@@ -1,5 +1,5 @@
 export type {
-  OverlayMode,
+  OverlayOptions,
   PageColor,
   PageFont,
   PageInspector,

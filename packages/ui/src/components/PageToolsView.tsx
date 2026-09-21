@@ -1,20 +1,27 @@
-import type { OverlayMode, PageColor, PageFont } from "@echo-ui-kit/adapters";
+import type {
+  OverlayOptions,
+  PageColor,
+  PageFont,
+} from "@echo-ui-kit/adapters";
 import { useState } from "react";
 import { usePageInspector } from "../context/PageContext";
 import { CollapsibleSection } from "./CollapsibleSection";
 import { PalettePreviewBar } from "./PalettePreviewBar";
 
-const OVERLAY_MODES: { id: OverlayMode; label: string; hint: string }[] = [
-  { id: "off", label: "Off", hint: "No overlay on the page" },
+const OVERLAY_TOGGLES: {
+  key: keyof OverlayOptions;
+  label: string;
+  hint: string;
+}[] = [
   {
-    id: "outline",
+    key: "outline",
     label: "Outline all",
-    hint: "Outlines every element at once, color-coded by kind",
+    hint: "Every element outlined at once, color-coded by kind",
   },
   {
-    id: "inspect",
-    label: "Inspect",
-    hint: "Hover an element for its margin, border, padding, and content boxes",
+    key: "inspect",
+    label: "Inspect on hover",
+    hint: "Margin, border, padding, and content boxes for whatever you point at",
   },
 ];
 
@@ -40,7 +47,10 @@ export function PageToolsView({
   onUseColors?: (hexes: string[]) => void;
 }) {
   const inspector = usePageInspector();
-  const [overlay, setOverlay] = useState<OverlayMode>("off");
+  const [overlay, setOverlay] = useState<OverlayOptions>({
+    outline: false,
+    inspect: false,
+  });
   const [colors, setColors] = useState<PageColor[] | null>(null);
   // Which of the scanned colors survive into the palette. A scan returns everything it found,
   // including the greys a page uses for borders and dividers — the interesting step is choosing
@@ -80,16 +90,17 @@ export function PageToolsView({
     }
   }
 
-  async function changeOverlay(mode: OverlayMode) {
+  async function toggleOverlay(key: keyof OverlayOptions, next: boolean) {
     if (!inspector) return;
-    // Set optimistically so the segmented control tracks the click; a failure resets it below,
-    // which is better than a control that appears dead while the message round-trips.
-    setOverlay(mode);
+    const updated = { ...overlay, [key]: next };
+    // Set optimistically so the checkbox tracks the click; a failure rolls it back below, which
+    // beats a control that appears dead while the message round-trips.
+    setOverlay(updated);
     setError(null);
     try {
-      await inspector.setOverlay(mode);
+      await inspector.setOverlay(updated);
     } catch (caught) {
-      setOverlay("off");
+      setOverlay(overlay);
       setError(caught instanceof Error ? caught.message : "That didn't work");
     }
   }
@@ -106,8 +117,6 @@ export function PageToolsView({
     );
   }
 
-  const activeHint = OVERLAY_MODES.find((m) => m.id === overlay)?.hint;
-
   return (
     <div className="flex h-full flex-col">
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
@@ -117,30 +126,37 @@ export function PageToolsView({
           </p>
         )}
 
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
           <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
             Box model
           </span>
-          <div className="flex gap-1 rounded-lg bg-zinc-100 p-1 dark:bg-surface-elevated">
-            {OVERLAY_MODES.map(({ id, label }) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => changeOverlay(id)}
-                className={`flex-1 cursor-pointer rounded-md px-2 py-1 text-xs font-medium transition active:scale-95 ${
-                  overlay === id
-                    ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white"
-                    : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <p className="text-[11px] text-zinc-500">{activeHint}</p>
+          {/* Checkboxes rather than one segmented control: the two overlays answer different
+              questions and compose usefully — outlines give you the page's structure while the
+              inspector explains whatever you point at. */}
+          {OVERLAY_TOGGLES.map(({ key, label, hint }) => (
+            <label
+              key={key}
+              className="flex cursor-pointer items-start gap-2 rounded-md border border-black/10 px-2.5 py-2 transition hover:bg-zinc-100 dark:border-white/10 dark:hover:bg-surface-elevated"
+            >
+              <input
+                type="checkbox"
+                checked={overlay[key]}
+                onChange={(e) => toggleOverlay(key, e.target.checked)}
+                className="mt-0.5 h-3.5 w-3.5 shrink-0 cursor-pointer accent-brand-600"
+              />
+              <span className="flex min-w-0 flex-col">
+                <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                  {label}
+                </span>
+                <span className="text-[11px] leading-snug text-zinc-500">
+                  {hint}
+                </span>
+              </span>
+            </label>
+          ))}
 
-          {overlay === "inspect" && (
-            <div className="flex flex-wrap gap-2 pt-1">
+          {overlay.inspect && (
+            <div className="flex flex-wrap gap-2">
               {BAND_LEGEND.map(({ label, color }) => (
                 <span
                   key={label}

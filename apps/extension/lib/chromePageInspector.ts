@@ -70,7 +70,7 @@ export const chromePageInspector: PageInspector = {
     if (response.ok && response.type === "extractFonts") return response.fonts;
     throw new Error("Unexpected response");
   },
-  async setOverlay(mode) {
-    await send({ type: "setOverlay", mode });
+  async setOverlay(options) {
+    await send({ type: "setOverlay", options });
   },
 };

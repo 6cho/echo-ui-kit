@@ -1,5 +1,5 @@
 import type {
-  OverlayMode,
+  OverlayOptions,
   PageColor,
   PageFont,
   PageSummary,
@@ -140,16 +140,6 @@ function extractFonts(): PageFont[] {
 let overlayRoot: HTMLElement | null = null;
 let hoverHandler: ((e: MouseEvent) => void) | null = null;
 
-function removeOverlay() {
-  document.getElementById(OUTLINE_STYLE_ID)?.remove();
-  if (hoverHandler) {
-    document.removeEventListener("mousemove", hoverHandler, true);
-    hoverHandler = null;
-  }
-  overlayRoot?.remove();
-  overlayRoot = null;
-}
-
 function ensureOverlayRoot(): HTMLElement {
   if (overlayRoot?.isConnected) return overlayRoot;
   const root = document.createElement("div");
@@ -275,26 +265,32 @@ function drawInspector(target: Element) {
   root.appendChild(label);
 }
 
-function setOverlay(mode: OverlayMode) {
-  removeOverlay();
-  if (mode === "off") return;
+function setOutline(on: boolean) {
+  document.getElementById(OUTLINE_STYLE_ID)?.remove();
+  if (!on) return;
+  const style = document.createElement("style");
+  style.id = OUTLINE_STYLE_ID;
+  // Outline rather than border: it's drawn outside the box and doesn't participate in layout,
+  // so turning this on can't reflow the page it's trying to show you.
+  style.textContent = `
+    *:not(#${OVERLAY_ROOT_ID}):not(#${OVERLAY_ROOT_ID} *) { outline: 1px solid rgba(111,168,220,0.5) !important; }
+    section, article, main, header, footer, nav, aside { outline-color: rgba(147,196,125,0.7) !important; }
+    p, h1, h2, h3, h4, h5, h6, span, a, li { outline-color: rgba(246,178,107,0.6) !important; }
+    img, svg, video, canvas { outline-color: rgba(224,102,102,0.7) !important; }
+  `;
+  document.head.appendChild(style);
+}
 
-  if (mode === "outline") {
-    const style = document.createElement("style");
-    style.id = OUTLINE_STYLE_ID;
-    // Outline rather than border: it's drawn outside the box and doesn't participate in layout,
-    // so turning this on can't reflow the page it's trying to show you.
-    style.textContent = `
-      *:not(#${OVERLAY_ROOT_ID}):not(#${OVERLAY_ROOT_ID} *) { outline: 1px solid rgba(111,168,220,0.5) !important; }
-      div:not(#${OVERLAY_ROOT_ID}):not(#${OVERLAY_ROOT_ID} *) { outline-color: rgba(111,168,220,0.5) !important; }
-      section, article, main, header, footer, nav, aside { outline-color: rgba(147,196,125,0.7) !important; }
-      p, h1, h2, h3, h4, h5, h6, span, a, li { outline-color: rgba(246,178,107,0.6) !important; }
-      img, svg, video, canvas { outline-color: rgba(224,102,102,0.7) !important; }
-    `;
-    document.head.appendChild(style);
+function setInspect(on: boolean) {
+  if (hoverHandler) {
+    document.removeEventListener("mousemove", hoverHandler, true);
+    hoverHandler = null;
+  }
+  if (!on) {
+    overlayRoot?.remove();
+    overlayRoot = null;
     return;
   }
-
   ensureOverlayRoot();
   hoverHandler = (event: MouseEvent) => {
     const target = event.target;
@@ -304,6 +300,13 @@ function setOverlay(mode: OverlayMode) {
   // Capture phase, because a page that stops mousemove propagation on its own widgets would
   // otherwise create dead zones the inspector silently can't see into.
   document.addEventListener("mousemove", hoverHandler, true);
+}
+
+function setOverlay(options: OverlayOptions) {
+  // Applied separately so turning one off leaves the other alone — they're independent effects
+  // that happen to share a control.
+  setOutline(options.outline);
+  setInspect(options.inspect);
 }
 
 function summarize(): PageSummary {
@@ -344,7 +347,7 @@ export default defineContentScript({
               } satisfies PageResponse);
               break;
             case "setOverlay":
-              setOverlay(request.mode);
+              setOverlay(request.options);
               sendResponse({
                 ok: true,
                 type: "setOverlay",
