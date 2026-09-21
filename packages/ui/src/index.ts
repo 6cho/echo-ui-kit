@@ -17,6 +17,7 @@ export {
 export { GradientGenerator } from "./components/GradientGenerator";
 export { ImageContrastChecker } from "./components/ImageContrastChecker";
 export { ImageDropZone } from "./components/ImageDropZone";
+export { PageToolsView } from "./components/PageToolsView";
 export { PaletteGenerator } from "./components/PaletteGenerator";
 export { SavedPalettesView } from "./components/SavedPalettesView";
 export { ShadowLayerControls } from "./components/ShadowLayerControls";
@@ -24,6 +25,10 @@ export { Slider } from "./components/Slider";
 export { SurfaceControls } from "./components/SurfaceControls";
 export { type MenuItem, ThreeDotMenu } from "./components/ThreeDotMenu";
 export { type ToolOption, ToolSwitcher } from "./components/ToolSwitcher";
+export {
+  PageInspectorProvider,
+  usePageInspector,
+} from "./context/PageContext";
 export { StorageProvider, useStorage } from "./context/StorageContext";
 export type {
   SavedColor,

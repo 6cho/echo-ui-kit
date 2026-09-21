@@ -5,6 +5,8 @@ import {
   ExportView,
   FilterPlayground,
   GradientGenerator,
+  PageInspectorProvider,
+  PageToolsView,
   PaletteGenerator,
   type SavedColor,
   type SavedPalette,
@@ -16,6 +18,7 @@ import {
   type WorkingPalette,
 } from "@echo-ui-kit/ui";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { chromePageInspector } from "../../lib/chromePageInspector";
 import { chromeStorageAdapter } from "../../lib/chromeStorageAdapter";
 
 const SAVED_PALETTES_KEY = "palettes";
@@ -39,6 +42,7 @@ type ToolId =
   | "box"
   | "easing"
   | "filter"
+  | "page"
   | "export"
   | "saved";
 
@@ -49,7 +53,9 @@ function paletteKey(colors: string[]): string {
 export default function App() {
   return (
     <StorageProvider adapter={chromeStorageAdapter}>
-      <AppShell />
+      <PageInspectorProvider inspector={chromePageInspector}>
+        <AppShell />
+      </PageInspectorProvider>
     </StorageProvider>
   );
 }
@@ -215,6 +221,21 @@ function AppShell() {
     [],
   );
 
+  // Colors scraped off a page arrive as a flat list with no base color or harmony behind them,
+  // which is exactly the shape an image-extracted palette has — so it loads through the same
+  // path rather than needing its own.
+  function handleUsePageColors(hexes: string[]) {
+    if (hexes.length === 0) return;
+    setPaletteToLoad({
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      baseColor: hexes[0] as string,
+      harmony: "image",
+      colors: hexes,
+    });
+    setTool("palette");
+  }
+
   // "Edit" is "select" plus taking you to where editing actually happens. Both make the palette
   // active for the contrast and export tools; only this one moves you off this view.
   function handleEditPalette(palette: SavedPalette) {
@@ -271,6 +292,12 @@ function AppShell() {
         label: "Easing",
         group: "Motion",
         description: "Drag a cubic-bezier curve and watch it run",
+      },
+      {
+        id: "page",
+        label: "Inspect page",
+        group: "Page",
+        description: "Box model, colors, and fonts from the live tab",
       },
       {
         id: "saved",
@@ -357,6 +384,13 @@ function AppShell() {
         }
       >
         <EasingEditor />
+      </div>
+      <div
+        className={
+          tool === "page" ? "min-h-0 flex-1 overflow-y-auto" : "hidden"
+        }
+      >
+        <PageToolsView onUseColors={handleUsePageColors} />
       </div>
       <div
         className={
