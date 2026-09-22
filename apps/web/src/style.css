@@ -1,0 +1,19 @@
+@import "tailwindcss";
+@import "@echo-ui-kit/tailwind-config/theme.css";
+
+/* Tailwind can't reach a native <input type="color">'s internal pseudo-elements — style them
+   directly so the picker reads as a clean rounded swatch instead of the browser's default chip
+   with its own border and padding. Same treatment the extension gives it, since the components
+   being styled are literally the same ones. */
+input[type="color"] {
+  padding: 0;
+  border: none;
+  background: none;
+}
+input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 0.375rem;
+}
