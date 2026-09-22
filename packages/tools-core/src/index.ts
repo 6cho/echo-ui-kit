@@ -1,3 +1,4 @@
+export * from "./analyze/drift";
 export * from "./color/contrast";
 export * from "./color/convert";
 export * from "./color/extract";

@@ -8,6 +8,7 @@ export { COLOR_WHEEL_VISUAL_INSET, ColorWheel } from "./components/ColorWheel";
 export { ContrastGrid } from "./components/ContrastGrid";
 export { ContrastView } from "./components/ContrastView";
 export { CssOutput } from "./components/CssOutput";
+export { DriftView } from "./components/DriftView";
 export { EasingEditor } from "./components/EasingEditor";
 export { ExportView } from "./components/ExportView";
 export { FilterPlayground } from "./components/FilterPlayground";

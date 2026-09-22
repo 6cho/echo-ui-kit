@@ -1,6 +1,8 @@
+import type { PageColor } from "@echo-ui-kit/adapters";
 import {
   BoxEditor,
   ContrastView,
+  DriftView,
   EasingEditor,
   ExportView,
   FilterPlayground,
@@ -43,6 +45,7 @@ type ToolId =
   | "easing"
   | "filter"
   | "page"
+  | "drift"
   | "export"
   | "saved";
 
@@ -221,6 +224,24 @@ function AppShell() {
     [],
   );
 
+  // Drift needs the same page scan the page tool runs, so it's owned here — otherwise opening
+  // Drift would rescan a page that was just scanned next door.
+  const [pageColors, setPageColors] = useState<PageColor[]>([]);
+  const [isScanningPage, setIsScanningPage] = useState(false);
+
+  async function scanPageColors() {
+    setIsScanningPage(true);
+    try {
+      setPageColors(await chromePageInspector.extractColors());
+    } catch {
+      // Silent: the page tool surfaces inspection failures with the context to explain them,
+      // and duplicating that here would mean two banners for one problem.
+      setPageColors([]);
+    } finally {
+      setIsScanningPage(false);
+    }
+  }
+
   // Colors scraped off a page arrive as a flat list with no base color or harmony behind them,
   // which is exactly the shape an image-extracted palette has — so it loads through the same
   // path rather than needing its own.
@@ -298,6 +319,12 @@ function AppShell() {
         label: "Inspect page",
         group: "Page",
         description: "Box model, colors, and fonts from the live tab",
+      },
+      {
+        id: "drift",
+        label: "Drift",
+        group: "Page",
+        description: "Find colors that nearly match your saved palette",
       },
       {
         id: "saved",
@@ -393,6 +420,18 @@ function AppShell() {
         <PageToolsView
           isActive={tool === "page"}
           onUseColors={handleUsePageColors}
+        />
+      </div>
+      <div
+        className={
+          tool === "drift" ? "min-h-0 flex-1 overflow-y-auto" : "hidden"
+        }
+      >
+        <DriftView
+          palettes={savedPalettes}
+          pageCandidates={pageColors}
+          onScanPage={scanPageColors}
+          isScanning={isScanningPage}
         />
       </div>
       <div
