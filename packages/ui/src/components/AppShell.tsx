@@ -64,8 +64,62 @@ const MIN_PANEL_WIDTH = 380;
 // tools at once anyway.
 const MAX_PANELS = 3;
 
+// Gutter around and between the panel cards. Numbers rather than classes because the same
+// figures have to come out of the width arithmetic below — a card's width is what's left of the
+// shell once these are paid for.
+const CARD_GAP = 12;
+const CARD_PADDING = 12;
+
+// An empty slot is an invitation, not a panel. It takes only what the open tools can spare,
+// clamped so it never shrinks to a sliver or swells into a wall.
+const ADD_SLOT_MIN_WIDTH = 112;
+const ADD_SLOT_MAX_WIDTH = 288;
+
 function paletteKey(colors: string[]): string {
   return colors.join(",");
+}
+
+/**
+ * An unfilled slot, drawn as the card it would become.
+ *
+ * Dotted rather than solid so it reads as an outline of something absent — and placed where the
+ * panel would actually appear, which says more about what the split does than a button in the
+ * header ever did.
+ */
+function AddPanelSlot({
+  column,
+  onClick,
+}: {
+  column: number;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title="Open another tool beside this one"
+      style={{ gridColumn: column, gridRow: "1 / -1" }}
+      className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-black/15 border-dotted px-3 text-zinc-400 transition hover:border-black/30 hover:bg-black/[0.02] hover:text-zinc-600 dark:border-white/15 dark:text-zinc-500 dark:hover:border-white/30 dark:hover:bg-white/[0.03] dark:hover:text-zinc-300"
+    >
+      <span className="flex h-9 w-9 items-center justify-center rounded-full border border-current border-dotted">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          className="h-4 w-4"
+          aria-hidden="true"
+        >
+          <title>Add a panel</title>
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+      </span>
+      <span className="text-center font-medium text-[11px] leading-tight">
+        Add a tool
+      </span>
+    </button>
+  );
 }
 
 /**
@@ -100,8 +154,21 @@ export function AppShell() {
     const observer = new ResizeObserver(([entry]) => {
       const width = entry?.contentRect.width ?? 0;
       setShellWidth(width);
+      // Counting the gutters, not just the panels: n cards need n minimum widths plus the
+      // padding either side and a gap between each pair, so n fits while
+      // width - 2p - g(n-1) >= n * MIN_PANEL_WIDTH — solved for n below. Dividing by the
+      // minimum width alone let three cards claim a 1140px window and left each one 364px.
       setMaxPanels(
-        Math.min(MAX_PANELS, Math.max(1, Math.floor(width / MIN_PANEL_WIDTH))),
+        Math.min(
+          MAX_PANELS,
+          Math.max(
+            1,
+            Math.floor(
+              (width - 2 * CARD_PADDING + CARD_GAP) /
+                (MIN_PANEL_WIDTH + CARD_GAP),
+            ),
+          ),
+        ),
       );
     });
     observer.observe(element);
@@ -116,11 +183,48 @@ export function AppShell() {
     );
   }, [maxPanels]);
 
-  // Panels split the shell evenly, so this is what one of them gets. Deriving it rather than
-  // measuring each panel keeps a single source of truth: the same number decides how many panels
-  // fit and how much room each one has left over.
-  const panelColumns =
-    shellWidth / Math.max(1, panels.length) >= TWO_COLUMN_MIN_WIDTH ? 2 : 1;
+  /**
+   * Where the open tools sit and how wide everything ends up.
+   *
+   * Every slot that fits is shown, so the ones you haven't filled read as an offer rather than as
+   * nothing. They flank the open tools: two spare slots put one on each side, a single spare goes
+   * to the right — which is what makes a lone tool sit in the middle of a three-wide shell and to
+   * the left of a two-wide one.
+   *
+   * The open tools get first claim on the width. They ask for enough to run two columns, and
+   * settle for one if that can't be had while the empty slots still read as cards; whatever is
+   * left over is theirs. Splitting the shell evenly instead would hand a lone tool a third of a
+   * desktop window and spend the other two thirds on invitations.
+   */
+  const emptySlots = Math.max(0, maxPanels - panels.length);
+  const leadingSlots = Math.floor(emptySlots / 2);
+  const trailingSlots = emptySlots - leadingSlots;
+  // Cards only once there is more than one slot. In the extension's side panel, and on a phone,
+  // a border around the single panel would be a frame around the whole window.
+  const isCarded = maxPanels > 1;
+  const innerWidth = isCarded
+    ? shellWidth - CARD_PADDING * 2 - CARD_GAP * (maxPanels - 1)
+    : shellWidth;
+  const panelTarget =
+    innerWidth - emptySlots * ADD_SLOT_MIN_WIDTH >=
+    panels.length * TWO_COLUMN_MIN_WIDTH
+      ? TWO_COLUMN_MIN_WIDTH
+      : TWO_COLUMN_MIN_WIDTH / 2;
+  const addSlotWidth =
+    emptySlots === 0
+      ? 0
+      : Math.round(
+          Math.min(
+            ADD_SLOT_MAX_WIDTH,
+            Math.max(
+              ADD_SLOT_MIN_WIDTH,
+              (innerWidth - panels.length * panelTarget) / emptySlots,
+            ),
+          ),
+        );
+  const panelWidth =
+    (innerWidth - emptySlots * addSlotWidth) / Math.max(1, panels.length);
+  const panelColumns = panelWidth >= TWO_COLUMN_MIN_WIDTH ? 2 : 1;
 
   const [savedPalettes, setSavedPalettes] = useState<SavedPalette[]>([]);
   const [savedColors, setSavedColors] = useState<SavedColor[]>([]);
@@ -435,11 +539,14 @@ export function AppShell() {
     });
   }
 
-  function addPanel() {
+  /** Fills an empty slot, on whichever side of the open tools it was showing. */
+  function addPanel(side: "leading" | "trailing") {
     setPanels((current) => {
       if (current.length >= maxPanels) return current;
       const unused = tools.find((t) => !current.includes(t.id as ToolId));
-      return unused ? [...current, unused.id as ToolId] : current;
+      if (!unused) return current;
+      const id = unused.id as ToolId;
+      return side === "leading" ? [id, ...current] : [...current, id];
     });
   }
 
@@ -463,11 +570,17 @@ export function AppShell() {
     return (
       <div
         key={id}
-        style={{ gridColumn: (isOpen ? index : 0) + 1, gridRow: 2 }}
+        style={{
+          gridColumn: leadingSlots + (isOpen ? index : 0) + 1,
+          gridRow: 2,
+        }}
+        // Transparent: the card it sits on is a separate grid child underneath. Only the
+        // matching bottom corners are needed here, so scrolled content is clipped by the same
+        // curve the card draws rather than painting over it.
         className={
           isOpen
             ? `${scrolls ? "overflow-y-auto" : "flex flex-col"} min-h-0 ${
-                index > 0 ? "border-black/10 border-l dark:border-white/10" : ""
+                isCarded ? "rounded-b-xl" : ""
               }`
             : "hidden"
         }
@@ -535,54 +648,53 @@ export function AppShell() {
             </svg>
           )}
         </button>
-
-        {/* Only offered when there's room for another panel — on a phone or in the extension's
-            side panel there never is, which is what makes this a progressive enhancement of the
-            single-column layout rather than a mode to opt into. */}
-        {panels.length < maxPanels && (
-          <button
-            type="button"
-            onClick={addPanel}
-            title="Open another tool beside this one"
-            className="flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-lg border border-black/10 px-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100 active:scale-95 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-surface-elevated"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              className="h-3.5 w-3.5"
-              aria-hidden="true"
-            >
-              <title>Split view</title>
-              <rect x="3" y="4" width="18" height="16" rx="2" />
-              <path d="M13 4v16" />
-            </svg>
-            Split
-          </button>
-        )}
       </header>
 
       <PanelColumnsProvider value={panelColumns}>
         <div
-          className="grid min-h-0 flex-1"
+          className={`grid min-h-0 flex-1 ${
+            isCarded ? "bg-zinc-100 dark:bg-black/25" : ""
+          }`}
           style={{
-            gridTemplateColumns: `repeat(${panels.length}, minmax(0, 1fr))`,
+            // Empty slots take a measured width, open tools share what is left. Written out
+            // track by track rather than as a repeat() because the two kinds of column are
+            // sized on completely different terms.
+            gridTemplateColumns: [
+              ...Array(leadingSlots).fill(`${addSlotWidth}px`),
+              ...Array(panels.length).fill("minmax(0, 1fr)"),
+              ...Array(trailingSlots).fill(`${addSlotWidth}px`),
+            ].join(" "),
             // The header row sizes to its content, the tool row takes the rest. minmax(0, 1fr)
             // rather than 1fr so a tool's own scroll container can shrink instead of stretching
             // the row to fit everything inside it.
             gridTemplateRows: "auto minmax(0, 1fr)",
+            gap: isCarded ? CARD_GAP : 0,
+            padding: isCarded ? CARD_PADDING : 0,
           }}
         >
+          {/* One card per open tool, spanning its header and its body. Drawn as a single
+              element beneath both rather than as a border on each, because a shadow split
+              across two stacked boxes casts onto its own other half. Rendered first so it
+              paints underneath, and inert so it never intercepts anything. */}
+          {isCarded &&
+            panels.map((_, index) => (
+              <div
+                // biome-ignore lint/suspicious/noArrayIndexKey: a card is a position, not an entity
+                key={`card-${index}`}
+                style={{
+                  gridColumn: leadingSlots + index + 1,
+                  gridRow: "1 / -1",
+                }}
+                className="pointer-events-none rounded-xl border border-black/10 bg-white shadow-black/[0.06] shadow-md dark:border-white/10 dark:bg-surface dark:shadow-black/40 dark:shadow-xl"
+              />
+            ))}
+
           {panels.map((panelTool, index) => (
             <div
               // biome-ignore lint/suspicious/noArrayIndexKey: a panel is a position, not an entity — index is its identity
               key={`panel-${index}`}
-              style={{ gridColumn: index + 1, gridRow: 1 }}
-              className={`flex items-center gap-2 border-black/10 border-b px-3 py-2 dark:border-white/10 ${
-                index > 0 ? "border-l" : ""
-              }`}
+              style={{ gridColumn: leadingSlots + index + 1, gridRow: 1 }}
+              className="flex items-center gap-2 border-black/10 border-b px-3 py-2 dark:border-white/10"
             >
               <ToolSwitcher
                 tools={tools}
@@ -600,6 +712,23 @@ export function AppShell() {
                 </button>
               )}
             </div>
+          ))}
+
+          {Array.from({ length: leadingSlots }, (_, index) => (
+            <AddPanelSlot
+              // biome-ignore lint/suspicious/noArrayIndexKey: a slot is a position, not an entity
+              key={`leading-${index}`}
+              column={index + 1}
+              onClick={() => addPanel("leading")}
+            />
+          ))}
+          {Array.from({ length: trailingSlots }, (_, index) => (
+            <AddPanelSlot
+              // biome-ignore lint/suspicious/noArrayIndexKey: a slot is a position, not an entity
+              key={`trailing-${index}`}
+              column={leadingSlots + panels.length + index + 1}
+              onClick={() => addPanel("trailing")}
+            />
           ))}
 
           {/* Every tool is mounted once and merely hidden when no panel holds it — a conditional
