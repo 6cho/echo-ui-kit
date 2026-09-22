@@ -98,10 +98,11 @@ input[type="range"] {
 
 /* A panel arriving in a slot that was empty a moment ago, in two beats.
    The card comes first and alone, so the column grows with an empty panel in it; its contents
-   follow once it has somewhere to be. Doing both at once meant a tool's worth of controls
-   reflowing through every width the card passed through on its way open, which read as the panel
-   being pasted in rather than opening. No scale on the card: its track is already animating
-   width, and a transform fighting that reads as a wobble. */
+   follow once it has somewhere to be, and are not in the layout at all until then — holding them
+   at zero opacity still costs a full reflow of the tool at every width the card passes through,
+   which is what made opening judder while closing stayed smooth. The delay between the beats is
+   sequenced in the shell, since it has to match the track transition exactly. No scale on the
+   card: its track is already animating width, and a transform fighting that reads as a wobble. */
 @keyframes panel-card-in {
   from {
     opacity: 0;
@@ -138,8 +139,5 @@ input[type="range"] {
   /* forwards, so it holds at invisible for the frames between the fade ending and the slot
      actually emptying. */
   --animate-panel-out: panel-out 350ms cubic-bezier(0.4, 0, 1, 1) forwards;
-  /* backwards, so the delay is spent invisible rather than showing the controls and then
-     fading them in from full opacity. */
-  --animate-panel-content-in: panel-content-in 400ms cubic-bezier(0.2, 0, 0, 1)
-    300ms backwards;
+  --animate-panel-content-in: panel-content-in 350ms cubic-bezier(0.2, 0, 0, 1);
 }

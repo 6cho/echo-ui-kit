@@ -85,13 +85,12 @@ const LAYOUT_TRANSITION_MS = 700;
 // take its time.
 const DRAG_SETTLE_MS = 220;
 
-// The card's fade plus its contents' delayed one — see panel-card-in and panel-content-in in
-// theme.css. The entrance has to outlast this or the class comes off mid-animation and the panel
-// snaps to full opacity.
-const PANEL_ENTER_MS = 700;
+// The contents' own fade, at either end. Opening and closing are then exact mirrors: a fade and
+// a slide each way, the same length in both directions.
+const PANEL_CONTENT_MS = 350;
 
 // How long the panel spends fading before its slot is actually emptied — see panel-out.
-const PANEL_EXIT_MS = 350;
+const PANEL_EXIT_MS = PANEL_CONTENT_MS;
 
 function paletteKey(colors: string[]): string {
   return colors.join(",");
@@ -178,8 +177,21 @@ export function AppShell() {
   const gridRef = useRef<HTMLDivElement>(null);
   const { theme, toggle: toggleTheme } = useTheme();
 
-  // Which slot just arrived, so only it plays the entrance. Cleared once it has.
-  const [enteringSlot, setEnteringSlot] = useState<number | null>(null);
+  /**
+   * The slot currently opening, and whether its column has finished growing.
+   *
+   * Until it has, the panel's contents aren't rendered at all — not merely transparent. An
+   * element at zero opacity is still laid out, so leaving the tool in the tree meant reflowing
+   * every slider, swatch and canvas in it through each of the forty-odd widths the card passes
+   * through on the way open. That is the whole difference between opening and closing: closing
+   * has already taken its contents out of the tree before the column starts to move.
+   */
+  const [entering, setEntering] = useState<{
+    index: number;
+    revealed: boolean;
+  } | null>(null);
+  // A rail that has just appeared, so it can fade in rather than blink into place.
+  const [enteringRail, setEnteringRail] = useState<number | null>(null);
   // Which slot is on its way out. It still holds its tool for the length of the fade — emptying
   // it first would take the panel away before there was anything to watch.
   const [exitingSlot, setExitingSlot] = useState<number | null>(null);
@@ -279,17 +291,34 @@ export function AppShell() {
         return next;
       });
       setExitingSlot(null);
-      setEnteringSlot(exitingSlot);
+      setEnteringRail(exitingSlot);
     }, PANEL_EXIT_MS);
     return () => clearTimeout(timer);
   }, [exitingSlot]);
 
-  // These are one-shot: they arm an animation and then get out of its way.
+  /**
+   * Walks an opening panel through its two beats: wait out the column's growth with the card
+   * empty, then put the contents in and let them fade.
+   */
   useEffect(() => {
-    if (enteringSlot === null) return;
-    const timer = setTimeout(() => setEnteringSlot(null), PANEL_ENTER_MS + 60);
+    if (!entering) return;
+    const { index, revealed } = entering;
+    const timer = setTimeout(
+      () => setEntering(revealed ? null : { index, revealed: true }),
+      revealed ? PANEL_CONTENT_MS + 60 : LAYOUT_TRANSITION_MS,
+    );
     return () => clearTimeout(timer);
-  }, [enteringSlot]);
+  }, [entering]);
+
+  // One-shot: arms the rail's fade and then gets out of its way.
+  useEffect(() => {
+    if (enteringRail === null) return;
+    const timer = setTimeout(
+      () => setEnteringRail(null),
+      PANEL_CONTENT_MS + 60,
+    );
+    return () => clearTimeout(timer);
+  }, [enteringRail]);
 
   /**
    * How wide everything ends up.
@@ -651,7 +680,7 @@ export function AppShell() {
       next[index] = unused.id as ToolId;
       return next;
     });
-    setEnteringSlot(index);
+    setEntering({ index, revealed: false });
   }
 
   /** Starts the panel fading. The slot is emptied by the effect below, once it has. */
@@ -767,6 +796,13 @@ export function AppShell() {
     };
   }
 
+  /** Opening, with its column still growing — nothing of the panel but the card is in the tree. */
+  const isGrowing = (index: number) =>
+    entering?.index === index && !entering.revealed;
+  /** Opening, column settled — the contents are in and fading up. */
+  const isRevealing = (index: number) =>
+    entering?.index === index && entering.revealed;
+
   /**
    * Wraps one tool in its grid cell.
    *
@@ -790,10 +826,10 @@ export function AppShell() {
         // matching bottom corners are needed here, so scrolled content is clipped by the same
         // curve the card draws rather than painting over it.
         className={
-          isOpen
+          isOpen && !isGrowing(index)
             ? `${scrolls ? "overflow-y-auto" : "flex flex-col"} min-h-0 ${
                 isCarded ? "rounded-b-xl" : ""
-              } ${index === enteringSlot ? "animate-panel-content-in" : ""} ${
+              } ${isRevealing(index) ? "animate-panel-content-in" : ""} ${
                 index === exitingSlot ? "animate-panel-out" : ""
               }`
             : "hidden"
@@ -907,7 +943,9 @@ export function AppShell() {
                     ...dragStyle(index),
                   }}
                   className={`pointer-events-none rounded-xl border border-black/10 bg-white shadow-black/[0.06] shadow-md dark:border-white/10 dark:bg-surface dark:shadow-black/40 dark:shadow-xl ${
-                    index === enteringSlot ? "animate-panel-card-in" : ""
+                    entering?.index === index && !entering.revealed
+                      ? "animate-panel-card-in"
+                      : ""
                   } ${index === exitingSlot ? "animate-panel-out" : ""}`}
                 />
               ),
@@ -920,7 +958,7 @@ export function AppShell() {
                 key={`add-${index}`}
                 column={index + 1}
                 style={dragStyle(index)}
-                isEntering={index === enteringSlot}
+                isEntering={index === enteringRail}
                 onClick={() => addPanel(index)}
               />
             ) : (
@@ -937,15 +975,19 @@ export function AppShell() {
                 onPointerMove={movePanelDrag}
                 onPointerUp={endPanelDrag}
                 onPointerCancel={endPanelDrag}
-                className={`flex touch-none select-none items-center gap-2 border-black/10 border-b px-3 py-2 dark:border-white/10 ${
-                  slots.length > 1
-                    ? drag?.from === index
-                      ? "cursor-grabbing"
-                      : "cursor-grab"
-                    : ""
-                } ${index === enteringSlot ? "animate-panel-content-in" : ""} ${
-                  index === exitingSlot ? "animate-panel-out" : ""
-                }`}
+                className={
+                  isGrowing(index)
+                    ? "hidden"
+                    : `flex touch-none select-none items-center gap-2 border-black/10 border-b px-3 py-2 dark:border-white/10 ${
+                        slots.length > 1
+                          ? drag?.from === index
+                            ? "cursor-grabbing"
+                            : "cursor-grab"
+                          : ""
+                      } ${isRevealing(index) ? "animate-panel-content-in" : ""} ${
+                        index === exitingSlot ? "animate-panel-out" : ""
+                      }`
+                }
               >
                 {/* Says the header is a handle, in the corner of the card where a handle is
                     looked for. Everything in this row drags except the switcher and the close
