@@ -1,5 +1,6 @@
 import type { PageColor } from "@echo-ui-kit/adapters";
 import {
+  type CSSProperties,
   type ReactNode,
   useCallback,
   useEffect,
@@ -70,10 +71,18 @@ const MAX_PANELS = 3;
 const CARD_GAP = 12;
 const CARD_PADDING = 12;
 
-// An empty slot is an invitation, not a panel. It takes only what the open tools can spare,
-// clamped so it never shrinks to a sliver or swells into a wall.
-const ADD_SLOT_MIN_WIDTH = 112;
-const ADD_SLOT_MAX_WIDTH = 288;
+// An empty slot is an invitation, not a panel: a fixed rail, wide enough to read as a card and
+// narrow enough that the open tools keep the window.
+const ADD_SLOT_WIDTH = 100;
+
+// Long enough to read as a movement, short enough not to sit between you and the tool. Shared by
+// the track widths and by a dragged panel settling into the slot it was dropped on.
+const LAYOUT_TRANSITION_MS = 260;
+
+// The card's fade plus its contents' delayed one — see panel-card-in and panel-content-in in
+// theme.css. The entrance has to outlast this or the class comes off mid-animation and the panel
+// snaps to full opacity.
+const PANEL_ENTER_MS = 440;
 
 function paletteKey(colors: string[]): string {
   return colors.join(",");
@@ -88,9 +97,11 @@ function paletteKey(colors: string[]): string {
  */
 function AddPanelSlot({
   column,
+  style,
   onClick,
 }: {
   column: number;
+  style?: CSSProperties;
   onClick: () => void;
 }) {
   return (
@@ -98,7 +109,7 @@ function AddPanelSlot({
       type="button"
       onClick={onClick}
       title="Open another tool beside this one"
-      style={{ gridColumn: column, gridRow: "1 / -1" }}
+      style={{ gridColumn: column, gridRow: "1 / -1", ...style }}
       className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-black/15 border-dotted px-3 text-zinc-400 transition hover:border-black/30 hover:bg-black/[0.02] hover:text-zinc-600 dark:border-white/15 dark:text-zinc-500 dark:hover:border-white/30 dark:hover:bg-white/[0.03] dark:hover:text-zinc-300"
     >
       <span className="flex h-9 w-9 items-center justify-center rounded-full border border-current border-dotted">
@@ -115,8 +126,8 @@ function AddPanelSlot({
           <path d="M12 5v14M5 12h14" />
         </svg>
       </span>
-      <span className="text-center font-medium text-[11px] leading-tight">
-        Add a tool
+      <span className="text-center font-medium text-[10px] leading-tight">
+        Add
       </span>
     </button>
   );
@@ -136,14 +147,43 @@ export function AppShell() {
   // Absent in a web build, which has no page to inspect. The page-dependent tools are dropped
   // from the switcher entirely rather than shown broken.
   const inspector = usePageInspector();
-  // One entry per open panel, each naming the tool it shows. Duplicates are impossible by
-  // construction — see openInPanel — because a tool is a single mounted component and can only
-  // be in one place at a time.
-  const [panels, setPanels] = useState<ToolId[]>(["palette"]);
+  /**
+   * One entry per slot the shell has room for, naming the tool in it or null if it's empty.
+   *
+   * Positions rather than a list of open tools, so a slot you fill stays where you clicked and a
+   * panel you drag lands where you dropped it. Deriving the arrangement from a count instead
+   * would re-centre everything on every change: filling the right-hand slot would slide the tool
+   * you were working in sideways. Duplicates are impossible by construction — see openInPanel —
+   * because a tool is a single mounted component and can only be in one place at a time.
+   */
+  const [slots, setSlots] = useState<(ToolId | null)[]>(["palette"]);
   const [maxPanels, setMaxPanels] = useState(1);
   const [shellWidth, setShellWidth] = useState(0);
   const shellRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
   const { theme, toggle: toggleTheme } = useTheme();
+
+  // Which slot just arrived, so only it plays the entrance. Cleared once it has.
+  const [enteringSlot, setEnteringSlot] = useState<number | null>(null);
+  // Arms the width transition. Off by default: the tracks also change on every resize, and
+  // animating those would turn dragging a window edge into a lagging rubber band.
+  const [isLayoutAnimating, setIsLayoutAnimating] = useState(false);
+  const [drag, setDrag] = useState<{
+    from: number;
+    over: number;
+    pointerId: number;
+    startX: number;
+    dx: number;
+    /** Released, easing the rest of the way to the slot it was dropped on. */
+    settling?: boolean;
+  } | null>(null);
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (settleTimer.current) clearTimeout(settleTimer.current);
+    },
+    [],
+  );
 
   // Measured from the shell itself rather than the window, because the two hosts disagree about
   // what the window means: in the extension it *is* the panel, while on the web the shell is one
@@ -175,55 +215,77 @@ export function AppShell() {
     return () => observer.disconnect();
   }, []);
 
-  // Dropping the overflow keeps panels from being squeezed below a usable width when the window
-  // shrinks. Trimming from the end preserves the first panel, which is the one being worked in.
+  // Re-lays the row whenever the number of slots changes, keeping the open tools in order and
+  // spreading the empty ones around them: two spare put one on each side, a single spare goes to
+  // the right. That's what centres a lone tool in a three-wide shell and sits it to the left of a
+  // two-wide one. Tools past the new limit are dropped from the end, preserving the first — the
+  // one being worked in.
   useEffect(() => {
-    setPanels((current) =>
-      current.length > maxPanels ? current.slice(0, maxPanels) : current,
-    );
+    setSlots((current) => {
+      if (current.length === maxPanels) return current;
+      const open = current
+        .filter((slot): slot is ToolId => slot !== null)
+        .slice(0, maxPanels);
+      const empty = maxPanels - open.length;
+      const leading = Math.floor(empty / 2);
+      return [
+        ...Array<ToolId | null>(leading).fill(null),
+        ...open,
+        ...Array<ToolId | null>(empty - leading).fill(null),
+      ];
+    });
   }, [maxPanels]);
 
+  // Both are one-shot: they arm an animation and then get out of its way.
+  useEffect(() => {
+    if (enteringSlot === null) return;
+    const timer = setTimeout(() => setEnteringSlot(null), PANEL_ENTER_MS + 60);
+    return () => clearTimeout(timer);
+  }, [enteringSlot]);
+
+  useEffect(() => {
+    if (!isLayoutAnimating) return;
+    const timer = setTimeout(
+      () => setIsLayoutAnimating(false),
+      LAYOUT_TRANSITION_MS + 60,
+    );
+    return () => clearTimeout(timer);
+  }, [isLayoutAnimating]);
+
   /**
-   * Where the open tools sit and how wide everything ends up.
+   * How wide everything ends up.
    *
-   * Every slot that fits is shown, so the ones you haven't filled read as an offer rather than as
-   * nothing. They flank the open tools: two spare slots put one on each side, a single spare goes
-   * to the right — which is what makes a lone tool sit in the middle of a three-wide shell and to
-   * the left of a two-wide one.
-   *
-   * The open tools get first claim on the width. They ask for enough to run two columns, and
-   * settle for one if that can't be had while the empty slots still read as cards; whatever is
-   * left over is theirs. Splitting the shell evenly instead would hand a lone tool a third of a
-   * desktop window and spend the other two thirds on invitations.
+   * Empty slots take a fixed rail; the open tools divide what's left. Splitting the shell evenly
+   * between all the slots instead would hand a lone tool a third of a desktop window and spend
+   * the other two thirds on invitations.
    */
-  const emptySlots = Math.max(0, maxPanels - panels.length);
-  const leadingSlots = Math.floor(emptySlots / 2);
-  const trailingSlots = emptySlots - leadingSlots;
+  const openCount = slots.filter((slot) => slot !== null).length;
+  const emptySlots = slots.length - openCount;
   // Cards only once there is more than one slot. In the extension's side panel, and on a phone,
   // a border around the single panel would be a frame around the whole window.
-  const isCarded = maxPanels > 1;
+  const isCarded = slots.length > 1;
   const innerWidth = isCarded
-    ? shellWidth - CARD_PADDING * 2 - CARD_GAP * (maxPanels - 1)
+    ? shellWidth - CARD_PADDING * 2 - CARD_GAP * (slots.length - 1)
     : shellWidth;
-  const panelTarget =
-    innerWidth - emptySlots * ADD_SLOT_MIN_WIDTH >=
-    panels.length * TWO_COLUMN_MIN_WIDTH
-      ? TWO_COLUMN_MIN_WIDTH
-      : TWO_COLUMN_MIN_WIDTH / 2;
-  const addSlotWidth =
-    emptySlots === 0
-      ? 0
-      : Math.round(
-          Math.min(
-            ADD_SLOT_MAX_WIDTH,
-            Math.max(
-              ADD_SLOT_MIN_WIDTH,
-              (innerWidth - panels.length * panelTarget) / emptySlots,
-            ),
-          ),
-        );
-  const panelWidth =
-    (innerWidth - emptySlots * addSlotWidth) / Math.max(1, panels.length);
+  const panelWidth = Math.max(
+    0,
+    (innerWidth - emptySlots * ADD_SLOT_WIDTH) / Math.max(1, openCount),
+  );
+  // Pixels rather than fr for every track, so the row can be transitioned: a track list only
+  // interpolates against another of the same length and kind, and px-against-fr is neither.
+  const slotWidths = slots.map((slot) =>
+    slot === null ? ADD_SLOT_WIDTH : panelWidth,
+  );
+  // Where each slot starts, measured from the grid's own left edge — what a drag in progress is
+  // compared against to work out which slot it's over.
+  const slotOffsets: number[] = [];
+  {
+    let x = isCarded ? CARD_PADDING : 0;
+    for (const width of slotWidths) {
+      slotOffsets.push(x);
+      x += width + CARD_GAP;
+    }
+  }
   const panelColumns = panelWidth >= TWO_COLUMN_MIN_WIDTH ? 2 : 1;
 
   const [savedPalettes, setSavedPalettes] = useState<SavedPalette[]>([]);
@@ -517,11 +579,11 @@ export function AppShell() {
    * from — so "show it in two places" isn't something the layout can express.
    */
   function openInPanel(index: number, id: ToolId) {
-    setPanels((current) => {
+    setSlots((current) => {
       const next = [...current];
       const existing = current.indexOf(id);
       if (existing !== -1 && existing !== index) {
-        next[existing] = current[index] as ToolId;
+        next[existing] = current[index] ?? null;
       }
       next[index] = id;
       return next;
@@ -531,29 +593,149 @@ export function AppShell() {
   /** Brings a tool into view without disturbing the others — used when an action in one panel
    *  needs to hand off to a specific tool. */
   function focusTool(id: ToolId) {
-    setPanels((current) => {
+    setSlots((current) => {
       if (current.includes(id)) return current;
       const next = [...current];
-      next[0] = id;
+      // An empty slot first, so handing off doesn't evict a tool that's in use.
+      const target = current.indexOf(null);
+      next[target === -1 ? 0 : target] = id;
       return next;
     });
   }
 
-  /** Fills an empty slot, on whichever side of the open tools it was showing. */
-  function addPanel(side: "leading" | "trailing") {
-    setPanels((current) => {
-      if (current.length >= maxPanels) return current;
-      const unused = tools.find((t) => !current.includes(t.id as ToolId));
-      if (!unused) return current;
-      const id = unused.id as ToolId;
-      return side === "leading" ? [id, ...current] : [...current, id];
+  /** Fills the slot that was clicked, leaving every other slot exactly where it is. */
+  function addPanel(index: number) {
+    const unused = tools.find((t) => !slots.includes(t.id as ToolId));
+    if (!unused) return;
+    setSlots((current) => {
+      const next = [...current];
+      next[index] = unused.id as ToolId;
+      return next;
+    });
+    setEnteringSlot(index);
+    setIsLayoutAnimating(true);
+  }
+
+  /** Empties a slot rather than removing it — the slot is a position, and the others shouldn't
+   *  shuffle along because one of them was closed. */
+  function closePanel(index: number) {
+    if (openCount <= 1) return;
+    setSlots((current) => {
+      const next = [...current];
+      next[index] = null;
+      return next;
+    });
+    setIsLayoutAnimating(true);
+  }
+
+  /**
+   * Dragging a panel by its header swaps it with whatever slot it's dropped on.
+   *
+   * A swap rather than an insert-and-shift, because with two or three slots there's no
+   * meaningful difference and a swap can't leave a hole. The dragged panel tracks the pointer
+   * exactly while the one it displaces slides the other way, so by the time you let go both are
+   * already where they'll end up and nothing jumps on release.
+   */
+  function slotAtClientX(clientX: number): number {
+    const rect = gridRef.current?.getBoundingClientRect();
+    if (!rect) return 0;
+    const x = clientX - rect.left;
+    for (let index = slotOffsets.length - 1; index > 0; index--) {
+      if (x >= (slotOffsets[index] as number)) return index;
+    }
+    return 0;
+  }
+
+  function startPanelDrag(index: number, event: React.PointerEvent) {
+    // Anything clickable in the header keeps its click: the switcher and the close button are
+    // the two things you'd otherwise never be able to press.
+    if ((event.target as HTMLElement).closest("button")) return;
+    if (slots.length < 2 || drag?.settling) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDrag({
+      from: index,
+      over: index,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      dx: 0,
     });
   }
 
-  function closePanel(index: number) {
-    setPanels((current) =>
-      current.length <= 1 ? current : current.filter((_, i) => i !== index),
-    );
+  function movePanelDrag(event: React.PointerEvent) {
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    setDrag({
+      ...drag,
+      dx: event.clientX - drag.startX,
+      over: slotAtClientX(event.clientX),
+    });
+  }
+
+  function endPanelDrag(event: React.PointerEvent) {
+    if (!drag || drag.pointerId !== event.pointerId || drag.settling) return;
+    const { from, over } = drag;
+    if (from === over) {
+      setDrag(null);
+      return;
+    }
+
+    const commit = () => {
+      setSlots((current) => {
+        const next = [...current];
+        next[from] = current[over] ?? null;
+        next[over] = current[from] ?? null;
+        return next;
+      });
+      setDrag(null);
+      // The two slots can be different widths — a panel traded with an empty rail — so the row
+      // has to re-proportion itself as well as re-order.
+      setIsLayoutAnimating(true);
+    };
+
+    // Two open panels are the same width, so the dragged one can be eased the rest of the way
+    // and the swap committed underneath it once it has arrived — it is already sitting over its
+    // new slot when it changes columns, and nothing visibly jumps.
+    //
+    // A panel traded with an empty rail can't do that: the rail's track is a fraction of the
+    // panel's width, so a panel eased into place there would be committed into a 100px column
+    // and squeeze before growing back. That one commits straight away and lets the widths
+    // themselves carry the move.
+    if (slots[from] !== null && slots[over] !== null) {
+      setDrag({
+        ...drag,
+        settling: true,
+        dx: (slotOffsets[over] as number) - (slotOffsets[from] as number),
+      });
+      settleTimer.current = setTimeout(commit, LAYOUT_TRANSITION_MS);
+      return;
+    }
+    commit();
+  }
+
+  /**
+   * The transform and stacking a slot needs while a drag is running.
+   *
+   * Two slots move: the one being dragged, pinned to the pointer, and the one it would displace,
+   * sliding into the space being vacated. Easing the dragged panel would make it lag behind the
+   * cursor, so it only eases once released.
+   */
+  function dragStyle(index: number): CSSProperties | undefined {
+    if (!drag) return undefined;
+    const offset =
+      index === drag.from
+        ? drag.dx
+        : index === drag.over && drag.over !== drag.from
+          ? (slotOffsets[drag.from] as number) -
+            (slotOffsets[drag.over] as number)
+          : 0;
+    if (offset === 0) return undefined;
+    return {
+      transform: `translateX(${offset}px)`,
+      zIndex: index === drag.from ? 20 : 10,
+      transition:
+        index === drag.from && !drag.settling
+          ? "none"
+          : `transform ${LAYOUT_TRANSITION_MS}ms cubic-bezier(0.2, 0, 0, 1)`,
+    };
   }
 
   /**
@@ -565,14 +747,15 @@ export function AppShell() {
    * leaves the element exactly where React thinks it is.
    */
   function slot(id: ToolId, node: ReactNode, scrolls = true) {
-    const index = panels.indexOf(id);
+    const index = slots.indexOf(id);
     const isOpen = index !== -1;
     return (
       <div
         key={id}
         style={{
-          gridColumn: leadingSlots + (isOpen ? index : 0) + 1,
+          gridColumn: (isOpen ? index : 0) + 1,
           gridRow: 2,
+          ...dragStyle(index),
         }}
         // Transparent: the card it sits on is a separate grid child underneath. Only the
         // matching bottom corners are needed here, so scrolled content is clipped by the same
@@ -581,7 +764,7 @@ export function AppShell() {
           isOpen
             ? `${scrolls ? "overflow-y-auto" : "flex flex-col"} min-h-0 ${
                 isCarded ? "rounded-b-xl" : ""
-              }`
+              } ${index === enteringSlot ? "animate-panel-content-in" : ""}`
             : "hidden"
         }
       >
@@ -652,24 +835,32 @@ export function AppShell() {
 
       <PanelColumnsProvider value={panelColumns}>
         <div
+          ref={gridRef}
           className={`grid min-h-0 flex-1 ${
             isCarded ? "bg-zinc-100 dark:bg-black/25" : ""
           }`}
           style={{
-            // Empty slots take a measured width, open tools share what is left. Written out
-            // track by track rather than as a repeat() because the two kinds of column are
-            // sized on completely different terms.
-            gridTemplateColumns: [
-              ...Array(leadingSlots).fill(`${addSlotWidth}px`),
-              ...Array(panels.length).fill("minmax(0, 1fr)"),
-              ...Array(trailingSlots).fill(`${addSlotWidth}px`),
-            ].join(" "),
+            // Every track in pixels, empty slots at a fixed rail and the open tools dividing
+            // what's left. Uniform units because a track list only interpolates against another
+            // of the same kind, and a row that can't interpolate can't be transitioned.
+            // Fractions until the shell has been measured: on the very first render the
+            // observed width is still zero, and a row of 0px tracks would paint an empty frame
+            // before the first measurement landed.
+            gridTemplateColumns:
+              shellWidth > 0
+                ? slotWidths.map((width) => `${width}px`).join(" ")
+                : slots.map(() => "minmax(0, 1fr)").join(" "),
             // The header row sizes to its content, the tool row takes the rest. minmax(0, 1fr)
             // rather than 1fr so a tool's own scroll container can shrink instead of stretching
             // the row to fit everything inside it.
             gridTemplateRows: "auto minmax(0, 1fr)",
             gap: isCarded ? CARD_GAP : 0,
             padding: isCarded ? CARD_PADDING : 0,
+            // Armed only around a deliberate change. The same tracks also move on every resize,
+            // where easing them would turn dragging a window edge into a lagging rubber band.
+            transition: isLayoutAnimating
+              ? `grid-template-columns ${LAYOUT_TRANSITION_MS}ms cubic-bezier(0.2, 0, 0, 1)`
+              : undefined,
           }}
         >
           {/* One card per open tool, spanning its header and its body. Drawn as a single
@@ -677,59 +868,88 @@ export function AppShell() {
               across two stacked boxes casts onto its own other half. Rendered first so it
               paints underneath, and inert so it never intercepts anything. */}
           {isCarded &&
-            panels.map((_, index) => (
+            slots.map((slotTool, index) =>
+              slotTool === null ? null : (
+                <div
+                  key={`card-${slotTool}`}
+                  style={{
+                    gridColumn: index + 1,
+                    gridRow: "1 / -1",
+                    ...dragStyle(index),
+                  }}
+                  className={`pointer-events-none rounded-xl border border-black/10 bg-white shadow-black/[0.06] shadow-md dark:border-white/10 dark:bg-surface dark:shadow-black/40 dark:shadow-xl ${
+                    index === enteringSlot ? "animate-panel-card-in" : ""
+                  }`}
+                />
+              ),
+            )}
+
+          {slots.map((slotTool, index) =>
+            slotTool === null ? (
+              <AddPanelSlot
+                // biome-ignore lint/suspicious/noArrayIndexKey: a slot is a position, not an entity
+                key={`add-${index}`}
+                column={index + 1}
+                style={dragStyle(index)}
+                onClick={() => addPanel(index)}
+              />
+            ) : (
               <div
-                // biome-ignore lint/suspicious/noArrayIndexKey: a card is a position, not an entity
-                key={`card-${index}`}
+                key={`header-${slotTool}`}
                 style={{
-                  gridColumn: leadingSlots + index + 1,
-                  gridRow: "1 / -1",
+                  gridColumn: index + 1,
+                  gridRow: 1,
+                  ...dragStyle(index),
                 }}
-                className="pointer-events-none rounded-xl border border-black/10 bg-white shadow-black/[0.06] shadow-md dark:border-white/10 dark:bg-surface dark:shadow-black/40 dark:shadow-xl"
-              />
-            ))}
-
-          {panels.map((panelTool, index) => (
-            <div
-              // biome-ignore lint/suspicious/noArrayIndexKey: a panel is a position, not an entity — index is its identity
-              key={`panel-${index}`}
-              style={{ gridColumn: leadingSlots + index + 1, gridRow: 1 }}
-              className="flex items-center gap-2 border-black/10 border-b px-3 py-2 dark:border-white/10"
-            >
-              <ToolSwitcher
-                tools={tools}
-                activeId={panelTool}
-                onChange={(id) => openInPanel(index, id as ToolId)}
-              />
-              {panels.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => closePanel(index)}
-                  title="Close this panel"
-                  className="ml-auto flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 active:scale-90 dark:hover:bg-surface-elevated dark:hover:text-white"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-          ))}
-
-          {Array.from({ length: leadingSlots }, (_, index) => (
-            <AddPanelSlot
-              // biome-ignore lint/suspicious/noArrayIndexKey: a slot is a position, not an entity
-              key={`leading-${index}`}
-              column={index + 1}
-              onClick={() => addPanel("leading")}
-            />
-          ))}
-          {Array.from({ length: trailingSlots }, (_, index) => (
-            <AddPanelSlot
-              // biome-ignore lint/suspicious/noArrayIndexKey: a slot is a position, not an entity
-              key={`trailing-${index}`}
-              column={leadingSlots + panels.length + index + 1}
-              onClick={() => addPanel("trailing")}
-            />
-          ))}
+                // The header doubles as the panel's handle. touch-none so a drag on a
+                // touchscreen moves the panel instead of scrolling the page out from under it.
+                onPointerDown={(event) => startPanelDrag(index, event)}
+                onPointerMove={movePanelDrag}
+                onPointerUp={endPanelDrag}
+                onPointerCancel={endPanelDrag}
+                className={`flex touch-none select-none items-center gap-2 border-black/10 border-b px-3 py-2 dark:border-white/10 ${
+                  slots.length > 1
+                    ? drag?.from === index
+                      ? "cursor-grabbing"
+                      : "cursor-grab"
+                    : ""
+                } ${index === enteringSlot ? "animate-panel-content-in" : ""}`}
+              >
+                {/* Says the header is a handle, in the corner of the card where a handle is
+                    looked for. Everything in this row drags except the switcher and the close
+                    button, but nothing said so until this was here. */}
+                {slots.length > 1 && (
+                  <svg
+                    viewBox="0 0 10 16"
+                    className="-ml-1 h-4 w-2.5 shrink-0 fill-current text-zinc-300 dark:text-zinc-600"
+                    aria-hidden="true"
+                  >
+                    <circle cx="2" cy="3" r="1.4" />
+                    <circle cx="8" cy="3" r="1.4" />
+                    <circle cx="2" cy="8" r="1.4" />
+                    <circle cx="8" cy="8" r="1.4" />
+                    <circle cx="2" cy="13" r="1.4" />
+                    <circle cx="8" cy="13" r="1.4" />
+                  </svg>
+                )}
+                <ToolSwitcher
+                  tools={tools}
+                  activeId={slotTool}
+                  onChange={(id) => openInPanel(index, id as ToolId)}
+                />
+                {openCount > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => closePanel(index)}
+                    title="Close this panel"
+                    className="ml-auto flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 active:scale-90 dark:hover:bg-surface-elevated dark:hover:text-white"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            ),
+          )}
 
           {/* Every tool is mounted once and merely hidden when no panel holds it — a conditional
           render would unmount whichever isn't showing, wiping its state (the palette being built,
@@ -761,7 +981,7 @@ export function AppShell() {
             slot(
               "page",
               <PageToolsView
-                isActive={panels.includes("page")}
+                isActive={slots.includes("page")}
                 onUseColors={handleUsePageColors}
               />,
               false,
