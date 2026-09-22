@@ -27,6 +27,7 @@ export { SavedPalettesView } from "./components/SavedPalettesView";
 export { ShadowLayerControls } from "./components/ShadowLayerControls";
 export { Slider } from "./components/Slider";
 export { SurfaceControls } from "./components/SurfaceControls";
+export { ThemeTester } from "./components/ThemeTester";
 export { type MenuItem, ThreeDotMenu } from "./components/ThreeDotMenu";
 export { type ToolOption, ToolSwitcher } from "./components/ToolSwitcher";
 export {
@@ -34,6 +35,7 @@ export {
   usePageInspector,
 } from "./context/PageContext";
 export { StorageProvider, useStorage } from "./context/StorageContext";
+export { initTheme, type Theme, useTheme } from "./lib/theme";
 export type {
   SavedColor,
   SavedPalette,

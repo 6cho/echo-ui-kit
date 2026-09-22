@@ -55,12 +55,11 @@ export function Slider({
         onChange={(e) => onChange(Number(e.target.value))}
         style={
           {
-            // A translucent dark scrim layered over the gradient (not a plain `opacity` on the
-            // whole element) — opacity would fade the thumb too, since it's a compositing
-            // property on the element's entire box including its pseudo-elements, and the thumb
-            // should stay fully opaque like the wheel's markers. This only dims the track's own
-            // background-image stack.
-            background: `linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.35)), ${trackBackground}`,
+            // Handed over as custom properties rather than set as `background` here, because the
+            // track has to differ by theme and an inline style can't express that — it would
+            // also outrank any stylesheet rule trying to. The actual track is composed in
+            // theme.css, which can see whether dark mode is on.
+            "--slider-track": trackBackground,
             "--slider-thumb-color": thumbColor,
           } as CSSProperties
         }

@@ -9,6 +9,7 @@ import {
 } from "react";
 import { usePageInspector } from "../context/PageContext";
 import { useStorage } from "../context/StorageContext";
+import { useTheme } from "../lib/theme";
 import type {
   SavedColor,
   SavedPalette,
@@ -24,6 +25,7 @@ import { GradientGenerator } from "./GradientGenerator";
 import { PageToolsView } from "./PageToolsView";
 import { PaletteGenerator } from "./PaletteGenerator";
 import { SavedPalettesView } from "./SavedPalettesView";
+import { ThemeTester } from "./ThemeTester";
 import { type ToolOption, ToolSwitcher } from "./ToolSwitcher";
 
 const SAVED_PALETTES_KEY = "palettes";
@@ -43,6 +45,7 @@ const WORKING_PALETTE_SETTLE_MS = 1500;
 type ToolId =
   | "palette"
   | "contrast"
+  | "theme"
   | "gradient"
   | "box"
   | "easing"
@@ -83,6 +86,7 @@ export function AppShell() {
   const [panels, setPanels] = useState<ToolId[]>(["palette"]);
   const [maxPanels, setMaxPanels] = useState(1);
   const shellRef = useRef<HTMLDivElement>(null);
+  const { theme, toggle: toggleTheme } = useTheme();
 
   // Measured from the shell itself rather than the window, because the two hosts disagree about
   // what the window means: in the extension it *is* the panel, while on the web the shell is one
@@ -324,6 +328,12 @@ export function AppShell() {
         description: "Check pairs, or text over a screenshot",
       },
       {
+        id: "theme",
+        label: "Theme",
+        group: "Palette",
+        description: "Map the palette into light and dark, side by side",
+      },
+      {
         id: "export",
         label: "Export",
         group: "Palette",
@@ -451,7 +461,20 @@ export function AppShell() {
             : "hidden"
         }
       >
-        {node}
+        {/* Capped and centred rather than filling the panel. The tools are laid out as a
+            phone-width column of controls; stretched across a desktop the labels end up an
+            inch from their inputs and a gradient preview becomes a two-thousand-pixel band.
+            The scroll container stays full width so the scrollbar sits at the panel's edge
+            rather than floating in the middle of it. */}
+        <div
+          // Written out rather than built from a constant: Tailwind scans source text, so a class
+          // assembled at runtime is a class it never generates.
+          className={`mx-auto w-full max-w-[500px] ${
+            scrolls ? "" : "flex h-full min-h-0 flex-col"
+          }`}
+        >
+          {node}
+        </div>
       </div>
     );
   }
@@ -471,6 +494,45 @@ export function AppShell() {
             Front-end dev toolkit
           </span>
         </div>
+        <button
+          type="button"
+          onClick={toggleTheme}
+          title={theme === "dark" ? "Switch to light" : "Switch to dark"}
+          aria-label={theme === "dark" ? "Switch to light" : "Switch to dark"}
+          className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-black/10 text-zinc-600 transition hover:bg-zinc-100 active:scale-95 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-surface-elevated"
+        >
+          {theme === "dark" ? (
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-4 w-4"
+              aria-hidden="true"
+            >
+              <title>Sun</title>
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+            </svg>
+          ) : (
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-4 w-4"
+              aria-hidden="true"
+            >
+              <title>Moon</title>
+              <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />
+            </svg>
+          )}
+        </button>
+
         {/* Only offered when there's room for another panel — on a phone or in the extension's
             side panel there never is, which is what makes this a progressive enhancement of the
             single-column layout rather than a mode to opt into. */}
@@ -554,6 +616,7 @@ export function AppShell() {
           false,
         )}
         {slot("contrast", <ContrastView colors={workingColors} />)}
+        {slot("theme", <ThemeTester paletteColors={workingColors} />)}
         {slot("box", <BoxEditor paletteColors={workingColors} />)}
         {slot("gradient", <GradientGenerator paletteColors={workingColors} />)}
         {slot("filter", <FilterPlayground paletteColors={workingColors} />)}

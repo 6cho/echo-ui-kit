@@ -25,3 +25,73 @@
   --color-surface-elevated: #2d2e31;
   --color-surface-hover: #37383c;
 }
+
+/* Dark mode keys off a class rather than Tailwind's default prefers-color-scheme, so the in-app
+   switch can override the OS rather than only agreeing with it. The class is written to <html>
+   before React mounts (see initTheme) — with a class-based variant, doing it in an effect would
+   paint the light theme first and then correct itself. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Tells the browser which way its own native controls should lean — scrollbars, form widgets,
+   the canvas behind the page. Without it a dark UI gets light-styled scrollbars. */
+:root {
+  color-scheme: light;
+}
+:root.dark {
+  color-scheme: dark;
+}
+
+/* Thin translucent scrollbars instead of the platform's opaque ones, which in a 400px panel are
+   a solid grey stripe down the side of every scrollable region — and there are a lot of them.
+   Firefox takes the standard properties; Chrome needs the -webkit- pseudo-elements, so both are
+   specified rather than either alone. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.22) transparent;
+}
+:root.dark * {
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.22);
+  border-radius: 9999px;
+  /* A transparent border clipped to the padding box insets the thumb, so it reads as a floating
+     pill rather than a bar welded to the edge of the container. */
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.35);
+}
+:root.dark ::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+:root.dark ::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.32);
+}
+
+/* Slider tracks.
+   A color slider's gradient track previews what dragging it would produce, which is worth having
+   — but it was tuned against a dark panel, and the same gradient under its scrim reads as mud on
+   white. Light mode gets a flat neutral instead; dark mode keeps the preview.
+   Composed here rather than inline on the element because the value depends on the theme, and an
+   inline background would outrank any rule trying to vary it. */
+input[type="range"] {
+  background: #52525b;
+}
+:root.dark input[type="range"] {
+  /* A translucent scrim over the gradient rather than `opacity` on the element: opacity composites
+     the whole box including the thumb pseudo-element, and the thumb should stay fully opaque. */
+  background:
+    linear-gradient(rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.35)),
+    var(--slider-track, linear-gradient(currentColor, currentColor));
+}
