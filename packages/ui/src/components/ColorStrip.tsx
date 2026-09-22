@@ -21,12 +21,14 @@ export function ColorStrip({
   if (colors.length === 0) return null;
 
   return (
-    // flex-1 so a strip sharing a row with the color picker takes the remaining width instead of
-    // collapsing toward zero — its segments are all flex-1, so there's no intrinsic width to fall
-    // back on. Harmless in a column, where a flex child stretches across regardless.
+    // flex-1 so a strip sharing a row with the color picker claims the remaining width and the
+    // picker stays pinned to the far end. Harmless in a column, where a flex child stretches
+    // across regardless.
     <div className="flex min-w-0 flex-1 flex-col gap-1">
       {label && <span className="text-[11px] text-zinc-500">{label}</span>}
-      <div className="flex h-7 overflow-hidden rounded-md border border-black/10 dark:border-white/10">
+      {/* w-fit so the segments stop at square instead of spreading across a wide panel; the
+          wrapper above still takes the full row, so the strip stays aligned under its label. */}
+      <div className="flex h-7 w-fit max-w-full overflow-hidden rounded-md border border-black/10 dark:border-white/10">
         {colors.map((hex) => (
           <button
             key={hex}
@@ -36,7 +38,7 @@ export function ColorStrip({
             style={{ backgroundColor: hex }}
             // Brightness on press, not active:scale — the segments sit flush against each other,
             // and scaling one down would open a gap its neighbours don't move to fill.
-            className="relative min-w-0 flex-1 cursor-pointer transition hover:brightness-110 active:brightness-125"
+            className="relative min-w-0 max-w-7 basis-7 cursor-pointer transition hover:brightness-110 active:brightness-125"
           >
             {/* A ring here would draw a hard bar across the touching edges and break the
                 continuous look. A small centred checkmark with its own drop shadow reads against

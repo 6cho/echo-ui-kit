@@ -18,13 +18,19 @@ export function PalettePreviewBar({
   title?: string;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-black/10 p-2 dark:border-white/10">
-      <div className="flex h-8 flex-1 overflow-hidden rounded-md border border-black/10 dark:border-white/10">
+    // Hugs its contents and centres, rather than stretching to whatever it is given. In a wide
+    // panel a full-width bar turned a nine-color palette into nine long bands with the button
+    // marooned at the far end; sized to fit, the strip and its button stay one object.
+    <div className="mx-auto flex w-fit max-w-full items-center gap-3 rounded-lg border border-black/10 p-2 dark:border-white/10">
+      <div className="flex h-8 min-w-0 w-fit max-w-full overflow-hidden rounded-md border border-black/10 dark:border-white/10">
         {colors.map((hex) => (
           <div
             key={hex}
             title={hex}
-            className="min-w-0 flex-1"
+            // A square at rest: basis and max-width both match the strip's height, so a segment
+            // grows no wider than it is tall. Shrinking is left alone — sixteen colors in a
+            // side panel still have to fit, and thin slivers beat a bar that overflows.
+            className="min-w-0 max-w-8 basis-8"
             style={{ backgroundColor: hex }}
           />
         ))}
