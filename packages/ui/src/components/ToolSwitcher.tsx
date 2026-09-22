@@ -62,10 +62,11 @@ export function ToolSwitcher({
 
       {isOpen && (
         <div
-          // Right-anchored so it grows leftward into the panel rather than off the edge — this
-          // sits at the far right of the header, and the menu is wider than its trigger. Capped
-          // and scrollable because the list is now long enough to outgrow a short viewport.
-          className="absolute right-0 z-20 mt-1 flex max-h-[70vh] w-60 flex-col overflow-y-auto rounded-lg border border-black/10 bg-white py-1 shadow-lg dark:border-white/10 dark:bg-surface-elevated"
+          // Left-anchored, because the trigger sits at the left edge of its panel's header and
+          // the menu is wider than it — anchoring right would grow the menu leftward, straight
+          // off the panel, where it gets clipped. Capped and scrollable since the list is long
+          // enough to outgrow a short viewport.
+          className="absolute left-0 z-20 mt-1 flex max-h-[70vh] w-60 flex-col overflow-y-auto rounded-lg border border-black/10 bg-white py-1 shadow-lg dark:border-white/10 dark:bg-surface-elevated"
         >
           {groups.map((group) => (
             <div key={group.name} className="flex flex-col">
