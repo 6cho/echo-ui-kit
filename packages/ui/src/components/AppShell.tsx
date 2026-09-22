@@ -1,5 +1,12 @@
 import type { PageColor } from "@echo-ui-kit/adapters";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { usePageInspector } from "../context/PageContext";
 import { useStorage } from "../context/StorageContext";
 import type {
@@ -45,6 +52,13 @@ type ToolId =
   | "export"
   | "saved";
 
+// Below this a panel stops being usable — the tools are laid out for a phone-width column, and
+// two cramped halves are worse than one that works.
+const MIN_PANEL_WIDTH = 380;
+// Three is where the returns stop: past it the panels are narrow, and nobody is watching four
+// tools at once anyway.
+const MAX_PANELS = 3;
+
 function paletteKey(colors: string[]): string {
   return colors.join(",");
 }
@@ -63,7 +77,36 @@ export function AppShell() {
   // Absent in a web build, which has no page to inspect. The page-dependent tools are dropped
   // from the switcher entirely rather than shown broken.
   const inspector = usePageInspector();
-  const [tool, setTool] = useState<ToolId>("palette");
+  // One entry per open panel, each naming the tool it shows. Duplicates are impossible by
+  // construction — see openInPanel — because a tool is a single mounted component and can only
+  // be in one place at a time.
+  const [panels, setPanels] = useState<ToolId[]>(["palette"]);
+  const [maxPanels, setMaxPanels] = useState(1);
+  const shellRef = useRef<HTMLDivElement>(null);
+
+  // Measured from the shell itself rather than the window, because the two hosts disagree about
+  // what the window means: in the extension it *is* the panel, while on the web the shell is one
+  // box inside a much wider page.
+  useEffect(() => {
+    const element = shellRef.current;
+    if (!element) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const width = entry?.contentRect.width ?? 0;
+      setMaxPanels(
+        Math.min(MAX_PANELS, Math.max(1, Math.floor(width / MIN_PANEL_WIDTH))),
+      );
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  // Dropping the overflow keeps panels from being squeezed below a usable width when the window
+  // shrinks. Trimming from the end preserves the first panel, which is the one being worked in.
+  useEffect(() => {
+    setPanels((current) =>
+      current.length > maxPanels ? current.slice(0, maxPanels) : current,
+    );
+  }, [maxPanels]);
   const [savedPalettes, setSavedPalettes] = useState<SavedPalette[]>([]);
   const [savedColors, setSavedColors] = useState<SavedColor[]>([]);
   // The palette currently being built in the Palette tool, lifted up here so the Contrast and
@@ -250,14 +293,14 @@ export function AppShell() {
       harmony: "image",
       colors: hexes,
     });
-    setTool("palette");
+    focusTool("palette");
   }
 
   // "Edit" is "select" plus taking you to where editing actually happens. Both make the palette
   // active for the contrast and export tools; only this one moves you off this view.
   function handleEditPalette(palette: SavedPalette) {
     setPaletteToLoad(palette);
-    setTool("palette");
+    focusTool("palette");
   }
 
   const savedCount = savedPalettes.length + savedColors.length;
@@ -341,8 +384,83 @@ export function AppShell() {
     [savedCount, inspector],
   );
 
+  /**
+   * Places a tool in a panel.
+   *
+   * If it's already open elsewhere the two panels trade contents rather than both claiming it.
+   * Each tool is mounted exactly once — that's what lets its state survive being switched away
+   * from — so "show it in two places" isn't something the layout can express.
+   */
+  function openInPanel(index: number, id: ToolId) {
+    setPanels((current) => {
+      const next = [...current];
+      const existing = current.indexOf(id);
+      if (existing !== -1 && existing !== index) {
+        next[existing] = current[index] as ToolId;
+      }
+      next[index] = id;
+      return next;
+    });
+  }
+
+  /** Brings a tool into view without disturbing the others — used when an action in one panel
+   *  needs to hand off to a specific tool. */
+  function focusTool(id: ToolId) {
+    setPanels((current) => {
+      if (current.includes(id)) return current;
+      const next = [...current];
+      next[0] = id;
+      return next;
+    });
+  }
+
+  function addPanel() {
+    setPanels((current) => {
+      if (current.length >= maxPanels) return current;
+      const unused = tools.find((t) => !current.includes(t.id as ToolId));
+      return unused ? [...current, unused.id as ToolId] : current;
+    });
+  }
+
+  function closePanel(index: number) {
+    setPanels((current) =>
+      current.length <= 1 ? current : current.filter((_, i) => i !== index),
+    );
+  }
+
+  /**
+   * Wraps one tool in its grid cell.
+   *
+   * Every tool is a direct child of the same grid and only ever changes which *column* it sits
+   * in. That matters: moving a tool between panels by re-parenting it would unmount and remount
+   * it, throwing away the palette you were part-way through building. Changing a grid-column
+   * leaves the element exactly where React thinks it is.
+   */
+  function slot(id: ToolId, node: ReactNode, scrolls = true) {
+    const index = panels.indexOf(id);
+    const isOpen = index !== -1;
+    return (
+      <div
+        key={id}
+        style={{ gridColumn: (isOpen ? index : 0) + 1, gridRow: 2 }}
+        className={
+          isOpen
+            ? `${scrolls ? "overflow-y-auto" : "flex flex-col"} min-h-0 ${
+                index > 0 ? "border-black/10 border-l dark:border-white/10" : ""
+              }`
+            : "hidden"
+        }
+      >
+        {node}
+      </div>
+    );
+  }
+
   return (
-    <div className="flex h-screen flex-col bg-white text-zinc-900 dark:bg-surface dark:text-zinc-50">
+    <div
+      ref={shellRef}
+      className="flex h-screen flex-col bg-white text-zinc-900 dark:bg-surface dark:text-zinc-50"
+    >
       <header className="flex shrink-0 items-center gap-2.5 border-black/10 border-b px-4 py-3 dark:border-white/10">
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand-600 text-xs font-bold text-white">
           E
@@ -353,115 +471,132 @@ export function AppShell() {
             Front-end dev toolkit
           </span>
         </div>
-        <ToolSwitcher
-          tools={tools}
-          activeId={tool}
-          onChange={(id) => setTool(id as ToolId)}
-        />
+        {/* Only offered when there's room for another panel — on a phone or in the extension's
+            side panel there never is, which is what makes this a progressive enhancement of the
+            single-column layout rather than a mode to opt into. */}
+        {panels.length < maxPanels && (
+          <button
+            type="button"
+            onClick={addPanel}
+            title="Open another tool beside this one"
+            className="flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-lg border border-black/10 px-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100 active:scale-95 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-surface-elevated"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              className="h-3.5 w-3.5"
+              aria-hidden="true"
+            >
+              <title>Split view</title>
+              <rect x="3" y="4" width="18" height="16" rx="2" />
+              <path d="M13 4v16" />
+            </svg>
+            Split
+          </button>
+        )}
       </header>
 
-      {/* Every tool stays mounted and is only hidden — a conditional render would unmount
-          whichever isn't active, wiping its state (the whole palette being built, included)
-          every time you switch away and back. min-h-0 lets each flex-1 region actually shrink
-          and scroll internally instead of growing to fit its content (the default flex
-          min-height:auto would otherwise block that). PaletteGenerator manages its own internal
-          scroll region + fixed footer, so its wrapper stays a bare flex container; the others
-          have no footer, so their wrappers scroll directly. */}
       <div
-        className={
-          tool === "palette" ? "flex min-h-0 flex-1 flex-col" : "hidden"
-        }
+        className="grid min-h-0 flex-1"
+        style={{
+          gridTemplateColumns: `repeat(${panels.length}, minmax(0, 1fr))`,
+          // The header row sizes to its content, the tool row takes the rest. minmax(0, 1fr)
+          // rather than 1fr so a tool's own scroll container can shrink instead of stretching
+          // the row to fit everything inside it.
+          gridTemplateRows: "auto minmax(0, 1fr)",
+        }}
       >
-        <PaletteGenerator
-          onSave={handleSavePalette}
-          onSaveColor={handleSaveColor}
-          onWorkingPaletteChange={handleWorkingPaletteChange}
-          onColorFocused={handleColorFocused}
-          paletteToLoad={paletteToLoad}
-          onPaletteLoaded={handlePaletteLoaded}
-        />
-      </div>
-      <div
-        className={
-          tool === "contrast" ? "min-h-0 flex-1 overflow-y-auto" : "hidden"
-        }
-      >
-        <ContrastView colors={workingColors} />
-      </div>
-      <div
-        className={tool === "box" ? "min-h-0 flex-1 overflow-y-auto" : "hidden"}
-      >
-        <BoxEditor paletteColors={workingColors} />
-      </div>
-      <div
-        className={
-          tool === "gradient" ? "min-h-0 flex-1 overflow-y-auto" : "hidden"
-        }
-      >
-        <GradientGenerator paletteColors={workingColors} />
-      </div>
-      <div
-        className={
-          tool === "filter" ? "min-h-0 flex-1 overflow-y-auto" : "hidden"
-        }
-      >
-        <FilterPlayground paletteColors={workingColors} />
-      </div>
-      <div
-        className={
-          tool === "easing" ? "min-h-0 flex-1 overflow-y-auto" : "hidden"
-        }
-      >
-        <EasingEditor />
-      </div>
-      <div
-        className={
-          tool === "page" ? "min-h-0 flex-1 overflow-y-auto" : "hidden"
-        }
-      >
-        <PageToolsView
-          isActive={tool === "page"}
-          onUseColors={handleUsePageColors}
-        />
-      </div>
-      <div
-        className={
-          tool === "drift" ? "min-h-0 flex-1 overflow-y-auto" : "hidden"
-        }
-      >
-        <DriftView
-          palettes={savedPalettes}
-          pageCandidates={inspector ? pageColors : undefined}
-          onScanPage={inspector ? scanPageColors : undefined}
-          isScanning={isScanningPage}
-        />
-      </div>
-      <div
-        className={
-          tool === "export" ? "min-h-0 flex-1 overflow-y-auto" : "hidden"
-        }
-      >
-        <ExportView colors={workingColors} baseColors={workingBaseColors} />
-      </div>
-      <div
-        className={
-          tool === "saved" ? "min-h-0 flex-1 overflow-y-auto" : "hidden"
-        }
-      >
-        <SavedPalettesView
-          palettes={savedPalettes}
-          onDeletePalette={handleDeletePalette}
-          onSelectPalette={setPaletteToLoad}
-          onEditPalette={handleEditPalette}
-          onSavePalette={handleSavePalette}
-          colors={savedColors}
-          onDeleteColor={handleDeleteColor}
-          onSaveColor={handleSaveColor}
-          recentPalettes={recentPalettes}
-          onDismissRecentPalette={handleDismissRecentPalette}
-          recentColors={recentColors}
-          onDismissRecentColor={handleDismissRecentColor}
-        />
+        {panels.map((panelTool, index) => (
+          <div
+            // biome-ignore lint/suspicious/noArrayIndexKey: a panel is a position, not an entity — index is its identity
+            key={`panel-${index}`}
+            style={{ gridColumn: index + 1, gridRow: 1 }}
+            className={`flex items-center gap-2 border-black/10 border-b px-3 py-2 dark:border-white/10 ${
+              index > 0 ? "border-l" : ""
+            }`}
+          >
+            <ToolSwitcher
+              tools={tools}
+              activeId={panelTool}
+              onChange={(id) => openInPanel(index, id as ToolId)}
+            />
+            {panels.length > 1 && (
+              <button
+                type="button"
+                onClick={() => closePanel(index)}
+                title="Close this panel"
+                className="ml-auto flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 active:scale-90 dark:hover:bg-surface-elevated dark:hover:text-white"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        ))}
+
+        {/* Every tool is mounted once and merely hidden when no panel holds it — a conditional
+          render would unmount whichever isn't showing, wiping its state (the palette being built,
+          included) every time you switched away. */}
+        {slot(
+          "palette",
+          <PaletteGenerator
+            onSave={handleSavePalette}
+            onSaveColor={handleSaveColor}
+            onWorkingPaletteChange={handleWorkingPaletteChange}
+            onColorFocused={handleColorFocused}
+            paletteToLoad={paletteToLoad}
+            onPaletteLoaded={handlePaletteLoaded}
+          />,
+          // Manages its own scroll region and pinned footer, so it needs to be a flex column
+          // rather than a scroll container.
+          false,
+        )}
+        {slot("contrast", <ContrastView colors={workingColors} />)}
+        {slot("box", <BoxEditor paletteColors={workingColors} />)}
+        {slot("gradient", <GradientGenerator paletteColors={workingColors} />)}
+        {slot("filter", <FilterPlayground paletteColors={workingColors} />)}
+        {slot("easing", <EasingEditor />)}
+        {inspector &&
+          slot(
+            "page",
+            <PageToolsView
+              isActive={panels.includes("page")}
+              onUseColors={handleUsePageColors}
+            />,
+            false,
+          )}
+        {slot(
+          "drift",
+          <DriftView
+            palettes={savedPalettes}
+            pageCandidates={inspector ? pageColors : undefined}
+            onScanPage={inspector ? scanPageColors : undefined}
+            isScanning={isScanningPage}
+          />,
+        )}
+        {slot(
+          "export",
+          <ExportView colors={workingColors} baseColors={workingBaseColors} />,
+        )}
+        {slot(
+          "saved",
+          <SavedPalettesView
+            palettes={savedPalettes}
+            onDeletePalette={handleDeletePalette}
+            onSelectPalette={setPaletteToLoad}
+            onEditPalette={handleEditPalette}
+            onSavePalette={handleSavePalette}
+            colors={savedColors}
+            onDeleteColor={handleDeleteColor}
+            onSaveColor={handleSaveColor}
+            recentPalettes={recentPalettes}
+            onDismissRecentPalette={handleDismissRecentPalette}
+            recentColors={recentColors}
+            onDismissRecentColor={handleDismissRecentColor}
+          />,
+        )}
       </div>
     </div>
   );
