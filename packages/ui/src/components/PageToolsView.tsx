@@ -8,6 +8,7 @@ import { usePageInspector } from "../context/PageContext";
 import { Checkbox } from "./Checkbox";
 import { CollapsibleSection } from "./CollapsibleSection";
 import { PalettePreviewBar } from "./PalettePreviewBar";
+import { ToolColumns, ToolWidth } from "./ToolColumns";
 
 const OVERLAY_TOGGLES: {
   key: keyof OverlayOptions;
@@ -181,178 +182,180 @@ export function PageToolsView({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
-        {error && (
-          <p className="rounded-lg bg-red-500/10 px-3 py-2 text-[11px] text-red-600 dark:text-red-400">
-            {error}
-          </p>
-        )}
-
-        <div className="flex flex-col gap-2">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-            Box model
-          </span>
-          {/* Checkboxes rather than one segmented control: the two overlays answer different
-              questions and compose usefully — outlines give you the page's structure while the
-              inspector explains whatever you point at. */}
-          {OVERLAY_TOGGLES.map(({ key, label, hint }) => (
-            <div
-              key={key}
-              className="rounded-md border border-black/10 px-2.5 py-2 transition hover:bg-zinc-100 dark:border-white/10 dark:hover:bg-surface-elevated"
-            >
-              <Checkbox
-                checked={overlay[key]}
-                onChange={(next) => toggleOverlay(key, next)}
-                align="start"
-              >
-                <span className="flex min-w-0 flex-col">
-                  <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                    {label}
-                  </span>
-                  <span className="text-[11px] leading-snug text-zinc-500">
-                    {hint}
-                  </span>
-                </span>
-              </Checkbox>
-            </div>
-          ))}
-
-          {overlay.inspect && (
-            <div className="flex flex-wrap gap-2">
-              {BAND_LEGEND.map(({ label, color }) => (
-                <span
-                  key={label}
-                  className="flex items-center gap-1.5 text-[11px] text-zinc-500"
-                >
-                  <span
-                    className="h-2.5 w-2.5 rounded-sm"
-                    style={{ backgroundColor: color }}
-                  />
-                  {label}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <CollapsibleSection
-          title="Colors"
-          summary={colors ? `${colors.length} found` : "nothing yet"}
-          defaultOpen
-        >
-          <button
-            type="button"
-            onClick={() =>
-              run(
-                "colors",
-                () => inspector.extractColors(),
-                (found) => {
-                  setColors(found);
-                  // Seeded with everything found rather than nothing, so a scan is immediately
-                  // useful and narrowing is the optional step.
-                  setKeptHexes(found.map((c) => c.hex));
-                },
-              )
-            }
-            disabled={busy === "colors"}
-            className="cursor-pointer self-start rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {busy === "colors" ? "Scanning…" : "Rescan colors"}
-          </button>
-
-          {colors && colors.length > 0 && (
-            <div className="flex flex-col gap-1">
-              {colors.map((color) => {
-                const kept = keptHexes.includes(color.hex);
-                return (
-                  <button
-                    key={color.hex}
-                    type="button"
-                    onClick={() => toggleColor(color.hex)}
-                    title={
-                      kept ? "Leave out of the palette" : "Add to the palette"
-                    }
-                    className={`flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1 text-left transition active:scale-[0.99] ${
-                      kept
-                        ? "border-black/10 dark:border-white/10"
-                        : "border-transparent opacity-40 hover:opacity-70"
-                    }`}
-                  >
-                    <span
-                      className="h-4 w-4 shrink-0 rounded-full border border-black/10 dark:border-white/10"
-                      style={{ backgroundColor: color.hex }}
-                    />
-                    <span className="font-mono text-[11px] text-zinc-700 dark:text-zinc-300">
-                      {color.hex}
-                    </span>
-                    <span className="ml-auto truncate text-[11px] text-zinc-500">
-                      {`${color.usage}× · ${color.sources.join(", ")}`}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {colors && colors.length === 0 && (
-            <p className="text-[11px] text-zinc-500">
-              Nothing repeated often enough to count as part of the design.
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <ToolColumns className="p-4">
+          {error && (
+            <p className="rounded-lg bg-red-500/10 px-3 py-2 text-[11px] text-red-600 dark:text-red-400">
+              {error}
             </p>
           )}
-        </CollapsibleSection>
 
-        <CollapsibleSection
-          title="Fonts"
-          summary={fonts ? `${fonts.length} found` : "nothing yet"}
-        >
-          <button
-            type="button"
-            onClick={() =>
-              run("fonts", () => inspector.extractFonts(), setFonts)
-            }
-            disabled={busy === "fonts"}
-            className="cursor-pointer self-start rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {busy === "fonts" ? "Scanning…" : "Rescan fonts"}
-          </button>
-
-          {fonts?.map((font) => (
-            <div
-              key={font.family}
-              className="flex flex-col gap-0.5 rounded-md border border-black/10 px-2 py-1.5 dark:border-white/10"
-            >
-              <div className="flex items-baseline justify-between gap-2">
-                {/* Rendered in the font itself where the machine has it — the fastest way to tell
-                  whether a stack is actually resolving to what the page intended. */}
-                <span
-                  className="truncate text-xs text-zinc-800 dark:text-zinc-200"
-                  style={{ fontFamily: font.family }}
+          <div className="flex flex-col gap-2">
+            <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+              Box model
+            </span>
+            {/* Checkboxes rather than one segmented control: the two overlays answer different
+              questions and compose usefully — outlines give you the page's structure while the
+              inspector explains whatever you point at. */}
+            {OVERLAY_TOGGLES.map(({ key, label, hint }) => (
+              <div
+                key={key}
+                className="rounded-md border border-black/10 px-2.5 py-2 transition hover:bg-zinc-100 dark:border-white/10 dark:hover:bg-surface-elevated"
+              >
+                <Checkbox
+                  checked={overlay[key]}
+                  onChange={(next) => toggleOverlay(key, next)}
+                  align="start"
                 >
-                  {font.family}
-                </span>
-                <span className="shrink-0 font-mono text-[11px] text-zinc-500">
-                  {`${font.usage}×`}
+                  <span className="flex min-w-0 flex-col">
+                    <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                      {label}
+                    </span>
+                    <span className="text-[11px] leading-snug text-zinc-500">
+                      {hint}
+                    </span>
+                  </span>
+                </Checkbox>
+              </div>
+            ))}
+
+            {overlay.inspect && (
+              <div className="flex flex-wrap gap-2">
+                {BAND_LEGEND.map(({ label, color }) => (
+                  <span
+                    key={label}
+                    className="flex items-center gap-1.5 text-[11px] text-zinc-500"
+                  >
+                    <span
+                      className="h-2.5 w-2.5 rounded-sm"
+                      style={{ backgroundColor: color }}
+                    />
+                    {label}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <CollapsibleSection
+            title="Colors"
+            summary={colors ? `${colors.length} found` : "nothing yet"}
+            defaultOpen
+          >
+            <button
+              type="button"
+              onClick={() =>
+                run(
+                  "colors",
+                  () => inspector.extractColors(),
+                  (found) => {
+                    setColors(found);
+                    // Seeded with everything found rather than nothing, so a scan is immediately
+                    // useful and narrowing is the optional step.
+                    setKeptHexes(found.map((c) => c.hex));
+                  },
+                )
+              }
+              disabled={busy === "colors"}
+              className="cursor-pointer self-start rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {busy === "colors" ? "Scanning…" : "Rescan colors"}
+            </button>
+
+            {colors && colors.length > 0 && (
+              <div className="flex flex-col gap-1">
+                {colors.map((color) => {
+                  const kept = keptHexes.includes(color.hex);
+                  return (
+                    <button
+                      key={color.hex}
+                      type="button"
+                      onClick={() => toggleColor(color.hex)}
+                      title={
+                        kept ? "Leave out of the palette" : "Add to the palette"
+                      }
+                      className={`flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1 text-left transition active:scale-[0.99] ${
+                        kept
+                          ? "border-black/10 dark:border-white/10"
+                          : "border-transparent opacity-40 hover:opacity-70"
+                      }`}
+                    >
+                      <span
+                        className="h-4 w-4 shrink-0 rounded-full border border-black/10 dark:border-white/10"
+                        style={{ backgroundColor: color.hex }}
+                      />
+                      <span className="font-mono text-[11px] text-zinc-700 dark:text-zinc-300">
+                        {color.hex}
+                      </span>
+                      <span className="ml-auto truncate text-[11px] text-zinc-500">
+                        {`${color.usage}× · ${color.sources.join(", ")}`}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {colors && colors.length === 0 && (
+              <p className="text-[11px] text-zinc-500">
+                Nothing repeated often enough to count as part of the design.
+              </p>
+            )}
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title="Fonts"
+            summary={fonts ? `${fonts.length} found` : "nothing yet"}
+          >
+            <button
+              type="button"
+              onClick={() =>
+                run("fonts", () => inspector.extractFonts(), setFonts)
+              }
+              disabled={busy === "fonts"}
+              className="cursor-pointer self-start rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {busy === "fonts" ? "Scanning…" : "Rescan fonts"}
+            </button>
+
+            {fonts?.map((font) => (
+              <div
+                key={font.family}
+                className="flex flex-col gap-0.5 rounded-md border border-black/10 px-2 py-1.5 dark:border-white/10"
+              >
+                <div className="flex items-baseline justify-between gap-2">
+                  {/* Rendered in the font itself where the machine has it — the fastest way to tell
+                  whether a stack is actually resolving to what the page intended. */}
+                  <span
+                    className="truncate text-xs text-zinc-800 dark:text-zinc-200"
+                    style={{ fontFamily: font.family }}
+                  >
+                    {font.family}
+                  </span>
+                  <span className="shrink-0 font-mono text-[11px] text-zinc-500">
+                    {`${font.usage}×`}
+                  </span>
+                </div>
+                <span className="truncate font-mono text-[11px] text-zinc-500">
+                  {`${font.sizes.slice(0, 6).join("/")}px · ${font.weights.join("/")}`}
                 </span>
               </div>
-              <span className="truncate font-mono text-[11px] text-zinc-500">
-                {`${font.sizes.slice(0, 6).join("/")}px · ${font.weights.join("/")}`}
-              </span>
-            </div>
-          ))}
-        </CollapsibleSection>
+            ))}
+          </CollapsibleSection>
+        </ToolColumns>
       </div>
 
       {/* Pinned below the scroll region, exactly as the palette tool's is — the palette you're
           assembling shouldn't scroll away from the button that uses it. */}
       {keptHexes.length > 0 && onUseColors && (
-        <div className="flex shrink-0 flex-col gap-2 border-t border-black/10 p-4 dark:border-white/10">
+        <ToolWidth className="flex shrink-0 flex-col gap-2 border-t border-black/10 p-4 dark:border-white/10">
           <PalettePreviewBar
             colors={keptHexes}
             actionLabel="Use as palette"
             onAction={() => onUseColors(keptHexes)}
             title="Open these colors in the palette tool"
           />
-        </div>
+        </ToolWidth>
       )}
     </div>
   );

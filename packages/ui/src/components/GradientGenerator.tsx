@@ -6,6 +6,7 @@ import {
 import { useMemo, useState } from "react";
 import { CssOutput } from "./CssOutput";
 import { DEFAULT_GRADIENT, GradientControls } from "./GradientControls";
+import { ToolColumns } from "./ToolColumns";
 
 export function GradientGenerator({
   paletteColors,
@@ -18,7 +19,7 @@ export function GradientGenerator({
   const css = useMemo(() => formatGradientCss(gradient), [gradient]);
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <ToolColumns className="p-4">
       <div
         className="h-40 rounded-lg border border-black/10 dark:border-white/10"
         style={{ background: value }}
@@ -33,6 +34,6 @@ export function GradientGenerator({
       </div>
 
       <CssOutput code={css} />
-    </div>
+    </ToolColumns>
   );
 }

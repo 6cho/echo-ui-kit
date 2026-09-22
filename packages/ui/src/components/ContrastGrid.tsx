@@ -4,6 +4,7 @@ import {
   wcagLevel,
 } from "@echo-ui-kit/tools-core";
 import { useMemo, useState } from "react";
+import { ToolColumns } from "./ToolColumns";
 
 // WCAG 2 thresholds, named so the chips below read as what they test rather than as bare
 // numbers. AA_LARGE is the 18pt+/14pt-bold allowance, which is why a pair can clear it while
@@ -101,7 +102,7 @@ export function ContrastGrid({ colors }: { colors: string[] }) {
   }
 
   return (
-    <div className="flex flex-col gap-5 p-4">
+    <ToolColumns gap="5" className="p-4">
       <div className="flex flex-col gap-1.5">
         <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
           Every pair
@@ -199,6 +200,6 @@ export function ContrastGrid({ colors }: { colors: string[] }) {
           </div>
         </div>
       )}
-    </div>
+    </ToolColumns>
   );
 }

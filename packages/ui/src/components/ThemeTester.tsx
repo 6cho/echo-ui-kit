@@ -11,6 +11,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { ColorStrip } from "./ColorStrip";
 import { CssOutput } from "./CssOutput";
+import { ToolColumns } from "./ToolColumns";
 
 type Mode = "light" | "dark";
 
@@ -126,7 +127,7 @@ export function ThemeTester({ paletteColors }: { paletteColors: string[] }) {
   const activeRole = THEME_ROLES.find((r) => r.id === role);
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <ToolColumns className="p-4">
       <div className="flex gap-3">
         <Preview mapping={pair.light} label="Light" />
         <Preview mapping={pair.dark} label="Dark" />
@@ -228,6 +229,6 @@ export function ThemeTester({ paletteColors }: { paletteColors: string[] }) {
       </button>
 
       <CssOutput code={css} />
-    </div>
+    </ToolColumns>
   );
 }

@@ -5,6 +5,7 @@ import {
   formatPaletteTokens,
 } from "@echo-ui-kit/tools-core";
 import { useMemo, useState } from "react";
+import { ToolColumns } from "./ToolColumns";
 
 /**
  * Turns the working palette into copy-pasteable tokens. This is the step that makes everything
@@ -67,7 +68,7 @@ export function ExportView({
   );
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <ToolColumns className="p-4">
       <div className="flex gap-1 rounded-lg bg-zinc-100 p-1 dark:bg-surface-elevated">
         {EXPORT_FORMATS.map(({ id, label }) => (
           <button
@@ -133,6 +134,6 @@ export function ExportView({
           ))}
         </div>
       </div>
-    </div>
+    </ToolColumns>
   );
 }

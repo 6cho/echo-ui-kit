@@ -6,6 +6,7 @@ import {
   regionContrastStats,
 } from "../lib/imageContrast";
 import { ImageDropZone } from "./ImageDropZone";
+import { ToolColumns, ToolWidth } from "./ToolColumns";
 
 // 24px is WCAG's "large text" boundary for non-bold type (18pt), which is the threshold that
 // decides whether 3:1 or 4.5:1 applies — so the presets straddle it deliberately rather than
@@ -182,7 +183,7 @@ export function ImageContrastChecker({
 
   if (!imageUrl) {
     return (
-      <div className="flex flex-col gap-3 p-4">
+      <ToolWidth className="flex flex-col gap-3 p-4">
         {error && (
           <p className="text-[11px] text-red-600 dark:text-red-400">{error}</p>
         )}
@@ -200,7 +201,7 @@ export function ImageContrastChecker({
             onFile={handleFile}
           />
         )}
-      </div>
+      </ToolWidth>
     );
   }
 
@@ -208,7 +209,7 @@ export function ImageContrastChecker({
   const passes = verdict !== null && verdict !== "fail";
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <ToolColumns className="p-4">
       {/* touch-none so dragging on a touchscreen moves the text instead of scrolling the panel. */}
       <div
         ref={stageRef}
@@ -332,6 +333,6 @@ export function ImageContrastChecker({
       >
         Use a different image
       </button>
-    </div>
+    </ToolColumns>
   );
 }

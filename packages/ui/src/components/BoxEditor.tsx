@@ -24,6 +24,7 @@ import {
 } from "./ShadowLayerControls";
 import { Slider } from "./Slider";
 import { SURFACE_PRESETS, SurfaceControls } from "./SurfaceControls";
+import { ToolColumns } from "./ToolColumns";
 
 const MAX_RADIUS_PX = 100;
 const MAX_RADIUS_PERCENT = 50;
@@ -337,7 +338,7 @@ export function BoxEditor({ paletteColors }: { paletteColors: string[] }) {
         : `${layers.length} layers`;
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <ToolColumns className="p-4">
       <div
         className="flex min-h-72 items-center justify-center rounded-lg border border-black/10 p-6 dark:border-white/10"
         style={{ background: formatFill(backdrop) }}
@@ -505,6 +506,6 @@ export function BoxEditor({ paletteColors }: { paletteColors: string[] }) {
         activeTab={outputTab}
         onTabChange={setOutputTab}
       />
-    </div>
+    </ToolColumns>
   );
 }

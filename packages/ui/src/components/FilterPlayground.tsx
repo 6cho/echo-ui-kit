@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CssOutput } from "./CssOutput";
 import { ImageDropZone } from "./ImageDropZone";
 import { Slider } from "./Slider";
+import { ToolColumns } from "./ToolColumns";
 
 export function FilterPlayground({
   paletteColors,
@@ -54,7 +55,7 @@ export function FilterPlayground({
       : ["#3b82f6", "#8b5cf6", "#ec4899", "#f59e0b", "#10b981"];
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <ToolColumns className="p-4">
       <div className="overflow-hidden rounded-lg border border-black/10 dark:border-white/10">
         {imageUrl ? (
           <img
@@ -135,6 +136,6 @@ export function FilterPlayground({
       </div>
 
       <CssOutput code={css} />
-    </div>
+    </ToolColumns>
   );
 }

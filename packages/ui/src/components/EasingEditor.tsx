@@ -8,6 +8,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CssOutput } from "./CssOutput";
 import { Slider } from "./Slider";
+import { ToolColumns } from "./ToolColumns";
 
 // The plotted square is SIZE across; PAD is the margin around it. The padding isn't decorative —
 // y is allowed outside 0–1 so an overshooting curve (a "back" ease) can be drawn where it actually
@@ -91,7 +92,7 @@ export function EasingEditor() {
   );
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <ToolColumns className="p-4">
       <svg
         ref={svgRef}
         viewBox={`0 0 ${VIEW} ${VIEW}`}
@@ -240,6 +241,6 @@ export function EasingEditor() {
       </div>
 
       <CssOutput code={css} />
-    </div>
+    </ToolColumns>
   );
 }

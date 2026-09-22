@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { SavedColor, SavedPalette } from "../types/palette";
 import { type MenuItem, ThreeDotMenu } from "./ThreeDotMenu";
+import { ToolColumns } from "./ToolColumns";
 
 function paletteKey(colors: string[]): string {
   return colors.join(",");
@@ -201,7 +202,7 @@ export function SavedPalettesView({
   }
 
   return (
-    <div className="flex flex-col gap-5 p-4">
+    <ToolColumns gap="5" className="p-4">
       {unsavedColors.length > 0 && (
         <div className="flex flex-col gap-1.5">
           <SectionHeading>Recent Colors (unsaved)</SectionHeading>
@@ -289,6 +290,6 @@ export function SavedPalettesView({
           </div>
         </div>
       )}
-    </div>
+    </ToolColumns>
   );
 }

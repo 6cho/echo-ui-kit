@@ -8,6 +8,7 @@ import {
 import { useMemo, useState } from "react";
 import type { SavedPalette } from "../types/palette";
 import { CollapsibleSection } from "./CollapsibleSection";
+import { ToolColumns } from "./ToolColumns";
 
 const VERDICT_STYLE: Record<
   DriftVerdict,
@@ -128,7 +129,7 @@ export function DriftView({
   }
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <ToolColumns className="p-4">
       <div className="flex flex-col gap-1.5">
         <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
           Measure against
@@ -252,6 +253,6 @@ export function DriftView({
           </p>
         </CollapsibleSection>
       )}
-    </div>
+    </ToolColumns>
   );
 }

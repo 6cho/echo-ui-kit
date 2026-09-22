@@ -29,11 +29,16 @@ export { Slider } from "./components/Slider";
 export { SurfaceControls } from "./components/SurfaceControls";
 export { ThemeTester } from "./components/ThemeTester";
 export { type MenuItem, ThreeDotMenu } from "./components/ThreeDotMenu";
+export { ToolColumns, ToolWidth } from "./components/ToolColumns";
 export { type ToolOption, ToolSwitcher } from "./components/ToolSwitcher";
 export {
   PageInspectorProvider,
   usePageInspector,
 } from "./context/PageContext";
+export {
+  PanelColumnsProvider,
+  usePanelColumns,
+} from "./context/PanelLayoutContext";
 export { StorageProvider, useStorage } from "./context/StorageContext";
 export { initTheme, type Theme, useTheme } from "./lib/theme";
 export type {

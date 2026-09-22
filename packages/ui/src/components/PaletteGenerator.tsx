@@ -23,6 +23,7 @@ import { ImageDropZone } from "./ImageDropZone";
 import { PalettePreviewBar } from "./PalettePreviewBar";
 import { Slider } from "./Slider";
 import { ThreeDotMenu } from "./ThreeDotMenu";
+import { ToolColumns, ToolWidth } from "./ToolColumns";
 
 // How many dominant colors to ask k-means for — capped at hexadic's own 6-column ceiling, so an
 // image-derived palette is never richer than the richest formula-based one. Still a request, not
@@ -697,7 +698,7 @@ export function PaletteGenerator({
   return (
     <div className="flex h-full flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        <div className="flex flex-col gap-6">
+        <ToolColumns gap="6">
           {/* First thing in the panel, above everything it actually governs — Base color and
               the eyedropper only make sense in harmony mode, and having the switch sit below
               them (as it did before) made toggling it feel like it was reaching "up and out of
@@ -1035,13 +1036,13 @@ export function PaletteGenerator({
               </div>
             </>
           )}
-        </div>
+        </ToolColumns>
       </div>
 
       {/* Outside the scrollable region above (a sibling, not a child) so it stays pinned to the
           bottom of the panel regardless of scroll position, instead of scrolling away with the
           rest of the content. */}
-      <div className="flex shrink-0 flex-col gap-2 border-t border-black/10 p-4 dark:border-white/10">
+      <ToolWidth className="flex shrink-0 flex-col gap-2 border-t border-black/10 p-4 dark:border-white/10">
         {focusedColor && (
           <SourceRow
             visual={
@@ -1079,7 +1080,7 @@ export function PaletteGenerator({
           onAction={savePalette}
           title="Save this palette"
         />
-      </div>
+      </ToolWidth>
     </div>
   );
 }

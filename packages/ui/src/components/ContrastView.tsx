@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ContrastGrid } from "./ContrastGrid";
 import { ImageContrastChecker } from "./ImageContrastChecker";
+import { ToolWidth } from "./ToolColumns";
 
 type ContrastMode = "palette" | "image";
 
@@ -17,7 +18,7 @@ export function ContrastView({ colors }: { colors: string[] }) {
 
   return (
     <div className="flex flex-col">
-      <div className="px-4 pt-4">
+      <ToolWidth className="px-4 pt-4">
         <div className="flex gap-1 rounded-lg bg-zinc-100 p-1 dark:bg-surface-elevated">
           {(
             [
@@ -39,7 +40,7 @@ export function ContrastView({ colors }: { colors: string[] }) {
             </button>
           ))}
         </div>
-      </div>
+      </ToolWidth>
 
       {/* Both stay mounted — switching to the palette matrix and back shouldn't throw away a
           loaded screenshot and the text position you'd dialed in on it. */}
