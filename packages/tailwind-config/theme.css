@@ -135,9 +135,9 @@ input[type="range"] {
 }
 
 @theme {
-  --animate-panel-card-in: panel-card-in 300ms cubic-bezier(0.2, 0, 0, 1);
+  --animate-panel-card-in: panel-card-in 200ms cubic-bezier(0.2, 0, 0, 1);
   /* forwards, so it holds at invisible for the frames between the fade ending and the slot
      actually emptying. */
-  --animate-panel-out: panel-out 350ms cubic-bezier(0.4, 0, 1, 1) forwards;
-  --animate-panel-content-in: panel-content-in 350ms cubic-bezier(0.2, 0, 0, 1);
+  --animate-panel-out: panel-out 220ms cubic-bezier(0.4, 0, 1, 1) forwards;
+  --animate-panel-content-in: panel-content-in 220ms cubic-bezier(0.2, 0, 0, 1);
 }

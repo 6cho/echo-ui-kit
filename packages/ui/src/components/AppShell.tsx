@@ -75,10 +75,10 @@ const CARD_PADDING = 12;
 // narrow enough that the open tools keep the window.
 const ADD_SLOT_WIDTH = 100;
 
-// How long a column takes to grow into a panel or collapse back to a rail. Deliberately
-// unhurried: this is the one moment the layout rearranges itself, and at a couple of hundred
-// milliseconds it was over before it registered as having happened at all.
-const LAYOUT_TRANSITION_MS = 700;
+// How long a column takes to grow into a panel or collapse back to a rail. The one moment the
+// layout rearranges itself, so it wants to be watchable — but it is also in the way of the tool
+// you just asked for, which puts the ceiling somewhere under half a second.
+const LAYOUT_TRANSITION_MS = 450;
 
 // A dragged panel easing into the slot it was dropped on, which is a different kind of motion —
 // it finishes a gesture the pointer already made, so it has to keep up with the hand rather than
@@ -87,7 +87,7 @@ const DRAG_SETTLE_MS = 220;
 
 // The contents' own fade, at either end. Opening and closing are then exact mirrors: a fade and
 // a slide each way, the same length in both directions.
-const PANEL_CONTENT_MS = 350;
+const PANEL_CONTENT_MS = 220;
 
 // How long the panel spends fading before its slot is actually emptied — see panel-out.
 const PANEL_EXIT_MS = PANEL_CONTENT_MS;
