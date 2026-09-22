@@ -75,14 +75,23 @@ const CARD_PADDING = 12;
 // narrow enough that the open tools keep the window.
 const ADD_SLOT_WIDTH = 100;
 
-// Long enough to read as a movement, short enough not to sit between you and the tool. Shared by
-// the track widths and by a dragged panel settling into the slot it was dropped on.
-const LAYOUT_TRANSITION_MS = 260;
+// How long a column takes to grow into a panel or collapse back to a rail. Deliberately
+// unhurried: this is the one moment the layout rearranges itself, and at a couple of hundred
+// milliseconds it was over before it registered as having happened at all.
+const LAYOUT_TRANSITION_MS = 700;
+
+// A dragged panel easing into the slot it was dropped on, which is a different kind of motion —
+// it finishes a gesture the pointer already made, so it has to keep up with the hand rather than
+// take its time.
+const DRAG_SETTLE_MS = 220;
 
 // The card's fade plus its contents' delayed one — see panel-card-in and panel-content-in in
 // theme.css. The entrance has to outlast this or the class comes off mid-animation and the panel
 // snaps to full opacity.
-const PANEL_ENTER_MS = 440;
+const PANEL_ENTER_MS = 700;
+
+// How long the panel spends fading before its slot is actually emptied — see panel-out.
+const PANEL_EXIT_MS = 350;
 
 function paletteKey(colors: string[]): string {
   return colors.join(",");
@@ -98,10 +107,14 @@ function paletteKey(colors: string[]): string {
 function AddPanelSlot({
   column,
   style,
+  isEntering,
   onClick,
 }: {
   column: number;
   style?: CSSProperties;
+  /** Only when this slot has just become empty. Fading on every mount would flash the rail on
+   *  its way past during a drag, where it was already on screen the whole time. */
+  isEntering: boolean;
   onClick: () => void;
 }) {
   return (
@@ -110,7 +123,9 @@ function AddPanelSlot({
       onClick={onClick}
       title="Open another tool beside this one"
       style={{ gridColumn: column, gridRow: "1 / -1", ...style }}
-      className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-black/15 border-dotted px-3 text-zinc-400 transition hover:border-black/30 hover:bg-black/[0.02] hover:text-zinc-600 dark:border-white/15 dark:text-zinc-500 dark:hover:border-white/30 dark:hover:bg-white/[0.03] dark:hover:text-zinc-300"
+      className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-black/15 border-dotted px-3 text-zinc-400 transition hover:border-black/30 hover:bg-black/[0.02] hover:text-zinc-600 dark:border-white/15 dark:text-zinc-500 dark:hover:border-white/30 dark:hover:bg-white/[0.03] dark:hover:text-zinc-300 ${
+        isEntering ? "animate-panel-card-in" : ""
+      }`}
     >
       <span className="flex h-9 w-9 items-center justify-center rounded-full border border-current border-dotted">
         <svg
@@ -165,9 +180,16 @@ export function AppShell() {
 
   // Which slot just arrived, so only it plays the entrance. Cleared once it has.
   const [enteringSlot, setEnteringSlot] = useState<number | null>(null);
-  // Arms the width transition. Off by default: the tracks also change on every resize, and
-  // animating those would turn dragging a window edge into a lagging rubber band.
-  const [isLayoutAnimating, setIsLayoutAnimating] = useState(false);
+  // Which slot is on its way out. It still holds its tool for the length of the fade — emptying
+  // it first would take the panel away before there was anything to watch.
+  const [exitingSlot, setExitingSlot] = useState<number | null>(null);
+  // The tracks move for two different reasons and only one of them should animate. Opening,
+  // closing and reordering are discrete changes worth watching; a window being dragged is a
+  // continuous one, where easing each step would turn the row into a lagging rubber band. So the
+  // transition is always on and suppressed while a resize is in flight, rather than armed around
+  // each change — nothing to arm means nothing that can fail to be armed in time.
+  const [isResizing, setIsResizing] = useState(false);
+  const resizeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [drag, setDrag] = useState<{
     from: number;
     over: number;
@@ -194,6 +216,11 @@ export function AppShell() {
     const observer = new ResizeObserver(([entry]) => {
       const width = entry?.contentRect.width ?? 0;
       setShellWidth(width);
+      setIsResizing(true);
+      if (resizeTimer.current) clearTimeout(resizeTimer.current);
+      // Long enough to span the gap between two frames of a drag, short enough that the
+      // transition is back before you could click anything.
+      resizeTimer.current = setTimeout(() => setIsResizing(false), 160);
       // Counting the gutters, not just the panels: n cards need n minimum widths plus the
       // padding either side and a gap between each pair, so n fits while
       // width - 2p - g(n-1) >= n * MIN_PANEL_WIDTH — solved for n below. Dividing by the
@@ -212,7 +239,10 @@ export function AppShell() {
       );
     });
     observer.observe(element);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (resizeTimer.current) clearTimeout(resizeTimer.current);
+    };
   }, []);
 
   // Re-lays the row whenever the number of slots changes, keeping the open tools in order and
@@ -236,21 +266,30 @@ export function AppShell() {
     });
   }, [maxPanels]);
 
-  // Both are one-shot: they arm an animation and then get out of its way.
+  /**
+   * Empties a slot once its panel has faded, rather than removing it — the slot is a position,
+   * and the others shouldn't shuffle along because one of them was closed.
+   */
+  useEffect(() => {
+    if (exitingSlot === null) return;
+    const timer = setTimeout(() => {
+      setSlots((current) => {
+        const next = [...current];
+        next[exitingSlot] = null;
+        return next;
+      });
+      setExitingSlot(null);
+      setEnteringSlot(exitingSlot);
+    }, PANEL_EXIT_MS);
+    return () => clearTimeout(timer);
+  }, [exitingSlot]);
+
+  // These are one-shot: they arm an animation and then get out of its way.
   useEffect(() => {
     if (enteringSlot === null) return;
     const timer = setTimeout(() => setEnteringSlot(null), PANEL_ENTER_MS + 60);
     return () => clearTimeout(timer);
   }, [enteringSlot]);
-
-  useEffect(() => {
-    if (!isLayoutAnimating) return;
-    const timer = setTimeout(
-      () => setIsLayoutAnimating(false),
-      LAYOUT_TRANSITION_MS + 60,
-    );
-    return () => clearTimeout(timer);
-  }, [isLayoutAnimating]);
 
   /**
    * How wide everything ends up.
@@ -613,19 +652,12 @@ export function AppShell() {
       return next;
     });
     setEnteringSlot(index);
-    setIsLayoutAnimating(true);
   }
 
-  /** Empties a slot rather than removing it — the slot is a position, and the others shouldn't
-   *  shuffle along because one of them was closed. */
+  /** Starts the panel fading. The slot is emptied by the effect below, once it has. */
   function closePanel(index: number) {
-    if (openCount <= 1) return;
-    setSlots((current) => {
-      const next = [...current];
-      next[index] = null;
-      return next;
-    });
-    setIsLayoutAnimating(true);
+    if (openCount <= 1 || exitingSlot !== null) return;
+    setExitingSlot(index);
   }
 
   /**
@@ -686,9 +718,6 @@ export function AppShell() {
         return next;
       });
       setDrag(null);
-      // The two slots can be different widths — a panel traded with an empty rail — so the row
-      // has to re-proportion itself as well as re-order.
-      setIsLayoutAnimating(true);
     };
 
     // Two open panels are the same width, so the dragged one can be eased the rest of the way
@@ -705,7 +734,7 @@ export function AppShell() {
         settling: true,
         dx: (slotOffsets[over] as number) - (slotOffsets[from] as number),
       });
-      settleTimer.current = setTimeout(commit, LAYOUT_TRANSITION_MS);
+      settleTimer.current = setTimeout(commit, DRAG_SETTLE_MS);
       return;
     }
     commit();
@@ -734,7 +763,7 @@ export function AppShell() {
       transition:
         index === drag.from && !drag.settling
           ? "none"
-          : `transform ${LAYOUT_TRANSITION_MS}ms cubic-bezier(0.2, 0, 0, 1)`,
+          : `transform ${DRAG_SETTLE_MS}ms cubic-bezier(0.2, 0, 0, 1)`,
     };
   }
 
@@ -764,7 +793,9 @@ export function AppShell() {
           isOpen
             ? `${scrolls ? "overflow-y-auto" : "flex flex-col"} min-h-0 ${
                 isCarded ? "rounded-b-xl" : ""
-              } ${index === enteringSlot ? "animate-panel-content-in" : ""}`
+              } ${index === enteringSlot ? "animate-panel-content-in" : ""} ${
+                index === exitingSlot ? "animate-panel-out" : ""
+              }`
             : "hidden"
         }
       >
@@ -856,11 +887,9 @@ export function AppShell() {
             gridTemplateRows: "auto minmax(0, 1fr)",
             gap: isCarded ? CARD_GAP : 0,
             padding: isCarded ? CARD_PADDING : 0,
-            // Armed only around a deliberate change. The same tracks also move on every resize,
-            // where easing them would turn dragging a window edge into a lagging rubber band.
-            transition: isLayoutAnimating
-              ? `grid-template-columns ${LAYOUT_TRANSITION_MS}ms cubic-bezier(0.2, 0, 0, 1)`
-              : undefined,
+            transition: isResizing
+              ? undefined
+              : `grid-template-columns ${LAYOUT_TRANSITION_MS}ms cubic-bezier(0.2, 0, 0, 1)`,
           }}
         >
           {/* One card per open tool, spanning its header and its body. Drawn as a single
@@ -879,7 +908,7 @@ export function AppShell() {
                   }}
                   className={`pointer-events-none rounded-xl border border-black/10 bg-white shadow-black/[0.06] shadow-md dark:border-white/10 dark:bg-surface dark:shadow-black/40 dark:shadow-xl ${
                     index === enteringSlot ? "animate-panel-card-in" : ""
-                  }`}
+                  } ${index === exitingSlot ? "animate-panel-out" : ""}`}
                 />
               ),
             )}
@@ -891,6 +920,7 @@ export function AppShell() {
                 key={`add-${index}`}
                 column={index + 1}
                 style={dragStyle(index)}
+                isEntering={index === enteringSlot}
                 onClick={() => addPanel(index)}
               />
             ) : (
@@ -913,7 +943,9 @@ export function AppShell() {
                       ? "cursor-grabbing"
                       : "cursor-grab"
                     : ""
-                } ${index === enteringSlot ? "animate-panel-content-in" : ""}`}
+                } ${index === enteringSlot ? "animate-panel-content-in" : ""} ${
+                  index === exitingSlot ? "animate-panel-out" : ""
+                }`}
               >
                 {/* Says the header is a handle, in the corner of the card where a handle is
                     looked for. Everything in this row drags except the switcher and the close
