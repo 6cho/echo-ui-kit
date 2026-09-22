@@ -1,3 +1,6 @@
+// Matches the strip's own height (h-7) — see PalettePreviewBar for why this is a number.
+const SEGMENT_PX = 28;
+
 /**
  * A palette rendered as one continuous bar of segments, matching how saved palettes read in the
  * library.
@@ -26,9 +29,13 @@ export function ColorStrip({
     // across regardless.
     <div className="flex min-w-0 flex-1 flex-col gap-1">
       {label && <span className="text-[11px] text-zinc-500">{label}</span>}
-      {/* w-fit so the segments stop at square instead of spreading across a wide panel; the
-          wrapper above still takes the full row, so the strip stays aligned under its label. */}
-      <div className="flex h-7 w-fit max-w-full overflow-hidden rounded-md border border-black/10 dark:border-white/10">
+      {/* Capped at one square per color so the segments stop at square instead of spreading
+          across a wide panel. The cap sits on the strip rather than on each segment, so they can
+          still shrink below square when the panel is narrow. */}
+      <div
+        className="flex h-7 overflow-hidden rounded-md border border-black/10 dark:border-white/10"
+        style={{ maxWidth: colors.length * SEGMENT_PX }}
+      >
         {colors.map((hex) => (
           <button
             key={hex}
@@ -38,7 +45,7 @@ export function ColorStrip({
             style={{ backgroundColor: hex }}
             // Brightness on press, not active:scale — the segments sit flush against each other,
             // and scaling one down would open a gap its neighbours don't move to fill.
-            className="relative min-w-0 max-w-7 basis-7 cursor-pointer transition hover:brightness-110 active:brightness-125"
+            className="relative min-w-0 flex-1 cursor-pointer transition hover:brightness-110 active:brightness-125"
           >
             {/* A ring here would draw a hard bar across the touching edges and break the
                 continuous look. A small centred checkmark with its own drop shadow reads against
