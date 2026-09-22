@@ -1,3 +1,4 @@
+export { AppShell } from "./components/AppShell";
 export { BoxEditor } from "./components/BoxEditor";
 export { Checkbox } from "./components/Checkbox";
 export { CollapsibleSection } from "./components/CollapsibleSection";
