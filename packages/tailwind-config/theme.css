@@ -17,6 +17,10 @@
   --color-brand-600: #2563eb;
   --color-brand-900: #1e3a8a;
 
+  /* The theme's second colour. Rotated 150 degrees off the stock brand, which is what
+     deriveAppTheme falls back to when a palette has no second column of its own. */
+  --color-accent-300: #f89f65;
+
   /* Chrome's own dark-mode surfaces (chrome://extensions, DevTools, the side panel chrome
      itself) — not the generic Tailwind zinc scale, which reads noticeably darker/blacker than
      what surrounds this extension in the browser's actual dark theme. Each tier is a small step

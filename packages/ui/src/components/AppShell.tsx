@@ -475,7 +475,12 @@ export function AppShell() {
   // Recolours the interface from the colour the palette is built on, live. The base rather than
   // the palette: a triadic harmony off a red base contains a greener green, and picking the most
   // colourful entry made the app go green while the control driving it said red.
-  useAppTheme(workingPalette?.baseColor ?? null, isAppThemed);
+  // The palette's second column is the theme's second colour, where the harmony has one.
+  useAppTheme(
+    workingPalette?.baseColor ?? null,
+    workingPalette?.columns?.[1] ?? null,
+    isAppThemed,
+  );
   const workingBaseColors = useMemo(
     () => workingPalette?.columns ?? [],
     [workingPalette],

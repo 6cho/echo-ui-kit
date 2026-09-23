@@ -56,12 +56,20 @@ const PRIMARY_MIN_CONTRAST = 4.5;
 // follow the palette's *darkness* around, which at the low end produced a black button.
 const PRIMARY_LIGHTNESS = 0.55;
 // The mark that goes *on* the accent — brand-100. Non-text, so 3:1 is the bar; aiming a little
-// past it leaves room for the rounding into sRGB. Same hue as the accent rather than a rotated
-// one: a companion hue has to jump from light to dark to stay readable as the base sweeps through
-// the bright greens and cyans, and watching every mark invert halfway along a hue drag is worse
-// than not having a second hue at all.
+// past it leaves room for the rounding into sRGB.
 const ON_PRIMARY_MIN_CONTRAST = 3.5;
 const ON_PRIMARY_START_LIGHTNESS = 0.93;
+
+// The second colour of the theme. Where a palette supplies one — every harmony but monochrome
+// has a second column — that is what gets used, because the theme's second colour should be the
+// palette's second colour rather than something invented next to it. Failing that it is derived
+// by rotating the base, far enough to be plainly a different colour and short of the direct
+// complement, which reads as a clash rather than a companion.
+const SECONDARY_HUE_SHIFT = 150;
+// Around a "300": distinctly lighter than the accent it sits on, without being a tint of it —
+// the point is showing that a theme has more than one colour, so it keeps its own hue.
+const SECONDARY_LIGHTNESS = 0.78;
+const SECONDARY_MAX_CHROMA = 0.13;
 
 export interface AppTheme {
   /** Custom properties to set on the document root. */
@@ -94,7 +102,10 @@ function safeOklch(hex: string) {
  * Only hue and chroma are taken. Every lightness is the interface's own, which is what keeps this
  * a skin rather than a way to make the app illegible with a bad palette.
  */
-export function deriveAppTheme(source: string): AppTheme | null {
+export function deriveAppTheme(
+  source: string,
+  secondarySource?: string | null,
+): AppTheme | null {
   const base = safeOklch(source);
   if (!base) return null;
 
@@ -130,9 +141,10 @@ export function deriveAppTheme(source: string): AppTheme | null {
       c: chroma * 0.25,
       h: hue,
     }),
-    // Less a step on a ramp than a role: whatever reads as a mark on top of the accent. It had
-    // no job at all until the examples needed something to put on their shapes.
+    // Less a step on a ramp than a role: whatever reads as a mark on top of the accent.
     "--color-brand-100": lightenUntilVisible(primary, chroma, hue),
+    // The theme's other colour, for the places that exist to show there is one.
+    "--color-accent-300": secondary(secondarySource, hue, chroma),
     "--color-brand-500": toHex({ mode: "oklch", l: 0.66, c: chroma, h: hue }),
     "--color-brand-600": primary,
     "--color-brand-900": toHex({
@@ -171,6 +183,32 @@ export function deriveAppTheme(source: string): AppTheme | null {
   }
 
   return { variables, primary };
+}
+
+/**
+ * The theme's second colour, at a lightness that sits it above the accent.
+ *
+ * Only hue and chroma are taken from whatever supplied it, exactly as for the accent — a palette
+ * column can be any lightness at all, and a second colour that changed lightness with the palette
+ * would be unreadable as often as not.
+ */
+function secondary(
+  supplied: string | null | undefined,
+  baseHue: number,
+  baseChroma: number,
+): string {
+  const source = supplied ? safeOklch(supplied) : null;
+  const hasOwnHue = source && (source.c ?? 0) >= 0.002;
+  const hue = hasOwnHue
+    ? (source.h ?? 0)
+    : (baseHue + SECONDARY_HUE_SHIFT) % 360;
+  const chroma = hasOwnHue ? (source.c ?? 0) : baseChroma;
+  return toHex({
+    mode: "oklch",
+    l: SECONDARY_LIGHTNESS,
+    c: Math.min(SECONDARY_MAX_CHROMA, chroma * 0.6),
+    h: hue,
+  });
 }
 
 /**

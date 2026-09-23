@@ -14,10 +14,15 @@ import { useEffect, useMemo } from "react";
  * because the header's own toggle paints with the same variable — whatever the interface is using
  * is what the toggle shows.
  */
-export function useAppTheme(baseColor: string | null, enabled: boolean): void {
+export function useAppTheme(
+  baseColor: string | null,
+  secondaryColor: string | null,
+  enabled: boolean,
+): void {
   const theme = useMemo(
-    () => (enabled && baseColor ? deriveAppTheme(baseColor) : null),
-    [baseColor, enabled],
+    () =>
+      enabled && baseColor ? deriveAppTheme(baseColor, secondaryColor) : null,
+    [baseColor, secondaryColor, enabled],
   );
 
   useEffect(() => {
