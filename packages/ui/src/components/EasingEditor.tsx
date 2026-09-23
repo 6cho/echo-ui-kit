@@ -644,7 +644,7 @@ export function EasingEditor() {
           y={PAD}
           width={SIZE}
           height={SIZE}
-          className="fill-none stroke-black/10 dark:stroke-white/10"
+          className="fill-none stroke-accent-300/55"
           strokeWidth={1}
         />
         {GRID_STEPS.map((step) => (
@@ -654,7 +654,7 @@ export function EasingEditor() {
               y1={toSvgY(0)}
               x2={toSvgX(step)}
               y2={toSvgY(1)}
-              className="stroke-black/[0.09] dark:stroke-white/[0.09]"
+              className="stroke-accent-300/45"
               strokeDasharray="1 5"
               strokeLinecap="round"
               strokeWidth={1}
@@ -664,7 +664,7 @@ export function EasingEditor() {
               y1={toSvgY(step)}
               x2={toSvgX(1)}
               y2={toSvgY(step)}
-              className="stroke-black/[0.09] dark:stroke-white/[0.09]"
+              className="stroke-accent-300/45"
               strokeDasharray="1 5"
               strokeLinecap="round"
               strokeWidth={1}
@@ -673,13 +673,14 @@ export function EasingEditor() {
         ))}
 
         {/* Linear, drawn over the grid rather than under it: it is the thing a curve is read
-            against, not another gridline. */}
+            against, not another gridline — and left neutral for the same reason, so it doesn't
+            join the grid now that the grid has a colour. */}
         <line
           x1={toSvgX(0)}
           y1={toSvgY(0)}
           x2={toSvgX(1)}
           y2={toSvgY(1)}
-          className="stroke-black/20 dark:stroke-white/20"
+          className="stroke-black/25 dark:stroke-white/25"
           strokeDasharray="1 5"
           strokeLinecap="round"
           strokeWidth={1.25}
