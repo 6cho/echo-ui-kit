@@ -11,7 +11,14 @@ import {
   linearProgress,
   resampleLinear,
 } from "@echo-ui-kit/tools-core";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { CssOutput } from "./CssOutput";
 import { Slider } from "./Slider";
 import { ToolColumns } from "./ToolColumns";
@@ -177,6 +184,128 @@ function toSvgX(x: number): number {
 }
 function toSvgY(y: number): number {
   return PAD + (1 - y) * SIZE;
+}
+
+// The square each example animates, and the box it animates in. A fixed size because several of
+// the examples move it by a measured distance, and that distance has to know how big it is.
+const SHAPE = 24;
+const TILE_PAD = 10;
+
+function Tile({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <div className="clay-inset relative h-16 overflow-hidden rounded-lg bg-zinc-100 dark:bg-surface-elevated">
+        {children}
+      </div>
+      <span className="truncate text-center text-[10px] text-zinc-500">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+function Centred({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex h-full w-full items-center justify-center">
+      {children}
+    </div>
+  );
+}
+
+/**
+ * The same easing driving several different properties at once.
+ *
+ * A dot on a track tells you the rhythm but not what it does to anything: the same curve that
+ * feels crisp sliding a panel in can look broken on a fade, and an overshoot that reads as
+ * playful on a scale reads as a glitch on an opacity that has nowhere above 1 to go. Six at once
+ * is cheap — they all read the one number that is already being computed for the curve — and
+ * seeing them together is the only way to notice that.
+ */
+function Examples({ eased }: { eased: number }) {
+  const shape = "rounded-md bg-brand-600";
+  const size = { height: SHAPE, width: SHAPE };
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      <Tile label="Fade">
+        <Centred>
+          <div className={shape} style={{ ...size, opacity: eased }} />
+        </Centred>
+      </Tile>
+
+      <Tile label="Scale">
+        <Centred>
+          <div
+            className={shape}
+            style={{ ...size, transform: `scale(${0.3 + eased * 0.7})` }}
+          />
+        </Centred>
+      </Tile>
+
+      <Tile label="Move">
+        {/* Where the journey starts and ends, because without them a square sliding inside a
+            plain box has nothing to have overshot. */}
+        {[0, 1].map((end) => (
+          <div
+            key={end}
+            className="absolute h-1 w-1 rounded-full bg-black/20 dark:bg-white/20"
+            style={{
+              top: "50%",
+              marginTop: -2,
+              left: `calc(${TILE_PAD + SHAPE / 2 - 2}px + ${trackFraction(end)} * (100% - ${TILE_PAD * 2 + SHAPE}px))`,
+            }}
+          />
+        ))}
+        <div
+          className={`absolute ${shape}`}
+          style={{
+            ...size,
+            top: "50%",
+            marginTop: -SHAPE / 2,
+            // Mapped across the whole range a curve can reach, not just nought to one, so an
+            // overshooting ease runs past the far marker and comes back instead of being clipped
+            // off the side of the tile where nobody can see it happen.
+            left: `calc(${TILE_PAD}px + ${trackFraction(eased)} * (100% - ${TILE_PAD * 2 + SHAPE}px))`,
+          }}
+        />
+      </Tile>
+
+      <Tile label="Rotate">
+        <Centred>
+          <div
+            className={shape}
+            style={{ ...size, transform: `rotate(${eased * 180}deg)` }}
+          />
+        </Centred>
+      </Tile>
+
+      <Tile label="Drop">
+        <Centred>
+          <div
+            className={shape}
+            style={{
+              ...size,
+              // Starts above its resting place and arrives at it, so an overshooting curve dips
+              // below and settles — the one example where overshoot looks like what it is for.
+              transform: `translateY(${(1 - eased) * -22}px)`,
+            }}
+          />
+        </Centred>
+      </Tile>
+
+      <Tile label="Stretch">
+        <Centred>
+          <div
+            className="h-2 rounded-full bg-brand-600"
+            style={{
+              // Full is deliberately short of the tile, leaving somewhere for an overshoot to go.
+              // A width can't be negative either, so an undershooting curve holds at nothing.
+              width: `${Math.max(0, eased) * 70}%`,
+            }}
+          />
+        </Centred>
+      </Tile>
+    </div>
+  );
 }
 
 type EasingMode = "cubic" | "linear";
@@ -502,6 +631,13 @@ export function EasingEditor() {
             }}
           />
         </div>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <span className="font-medium text-[11px] text-zinc-500 uppercase tracking-wide">
+          In use
+        </span>
+        <Examples eased={eased} />
       </div>
 
       <Slider
