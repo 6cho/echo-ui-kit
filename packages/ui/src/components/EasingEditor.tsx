@@ -89,34 +89,73 @@ function weightsAt(u: number): { weight1: number; weight2: number } {
   return { weight1: 3 * (1 - u) ** 2 * u, weight2: 3 * (1 - u) * u ** 2 };
 }
 
+/** How far along the curve is at a given parameter. */
+function heightAt(bezier: CubicBezier, u: number): number {
+  const { weight1, weight2 } = weightsAt(u);
+  return weight1 * bezier.y1 + weight2 * bezier.y2 + u ** 3;
+}
+
 /**
- * Moves the curve so it passes through `targetY` at the moment `u`.
+ * Moves the curve so the handle at `dragged` lands on `targetY`, disturbing the other two as
+ * little as the curve allows.
  *
- * Two control values, one height to satisfy — the system is short of constraints, so something
- * has to decide how the correction is shared out. It goes to each control value in proportion to
- * how much that one was influencing `u` in the first place, which is the solution that changes
- * the curve's shape least to get there. In practice the outer handles mostly bend the nearer
- * control value while the middle one bows both equally, which is what dragging a physical curve
- * feels like.
+ * It cannot leave them alone entirely, and no amount of cleverness changes that: a cubic bezier
+ * has exactly two free heights, and there are three handles. Any two of them can be placed
+ * anywhere; the third then has nowhere to be but where those two put it. Three handles is one
+ * more than the curve has opinions.
  *
- * Only the heights move. The handles are pinned to fixed moments in time, so a drag is asking
- * "be this far along *then*" — it has nothing to say about x, and touching x would slide the
- * handle out from under the pointer.
+ * So the freedom gets spent deliberately instead of accidentally. Every pair of control heights
+ * that puts the dragged handle exactly on target forms a line — one equation, two unknowns — and
+ * the curve is free to sit anywhere along it. Walking that line to the point where the other two
+ * handles move least is a one-dimensional least-squares fit, solved outright rather than
+ * searched. The dragged handle still lands exactly under the pointer; the others give up about
+ * half the movement they used to.
+ *
+ * The previous version shared the correction between the control points by how much each was
+ * influencing the dragged moment, which minimised how far the *control points* moved. That is a
+ * different thing from minimising how far the *handles* move, and it is the handles you can see.
  */
 function reshapeAt(
   bezier: CubicBezier,
-  u: number,
+  dragged: number,
   targetY: number,
 ): CubicBezier {
-  const { weight1, weight2 } = weightsAt(u);
-  const share = weight1 ** 2 + weight2 ** 2;
-  if (share === 0) return bezier;
-  const current = weight1 * bezier.y1 + weight2 * bezier.y2 + u ** 3;
-  const dy = targetY - current;
+  const params = HANDLE_POSITIONS.map((at) => cubicBezierParamAtX(bezier, at));
+  const held = params[dragged];
+  if (held === undefined) return bezier;
+
+  const { weight1, weight2 } = weightsAt(held);
+  const norm = weight1 ** 2 + weight2 ** 2;
+  if (norm === 0) return bezier;
+
+  // A point on that line, and the direction along it. Anything of the form base + step * along
+  // puts the dragged handle exactly where it was asked to go.
+  const wanted = targetY - held ** 3;
+  const base = { y1: (wanted * weight1) / norm, y2: (wanted * weight2) / norm };
+  const along = { y1: -weight2, y2: weight1 };
+
+  let numerator = 0;
+  let denominator = 0;
+  params.forEach((u, index) => {
+    if (index === dragged) return;
+    const other = weightsAt(u);
+    // How fast this handle moves as the curve slides along the line, and how far out it already
+    // is at the line's starting point.
+    const rate = other.weight1 * along.y1 + other.weight2 * along.y2;
+    const offset =
+      other.weight1 * base.y1 +
+      other.weight2 * base.y2 +
+      u ** 3 -
+      heightAt(bezier, u);
+    numerator += rate * offset;
+    denominator += rate * rate;
+  });
+  const step = denominator === 0 ? 0 : -numerator / denominator;
+
   return {
     ...bezier,
-    y1: clamp(bezier.y1 + (dy * weight1) / share, MIN_Y, MAX_Y),
-    y2: clamp(bezier.y2 + (dy * weight2) / share, MIN_Y, MAX_Y),
+    y1: clamp(base.y1 + step * along.y1, MIN_Y, MAX_Y),
+    y2: clamp(base.y2 + step * along.y2, MIN_Y, MAX_Y),
   };
 }
 
@@ -154,7 +193,7 @@ export function EasingEditor() {
   const [progress, setProgress] = useState(0);
 
   const svgRef = useRef<SVGSVGElement>(null);
-  // Which moment's handle is being dragged, if any — one of HANDLE_POSITIONS.
+  // Which handle is being dragged, if any — an index into HANDLE_POSITIONS.
   const draggingRef = useRef<number | null>(null);
   // Read by the animation loop, which is mounted once and must not be torn down and restarted on
   // every tick of the duration slider — that would reset the loop mid-pass on every drag frame.
@@ -241,12 +280,10 @@ export function EasingEditor() {
         viewBox={`0 0 ${VIEW} ${VIEW}`}
         className="w-full touch-none select-none rounded-lg border border-black/10 bg-zinc-100 dark:border-white/10 dark:bg-surface-elevated"
         onPointerMove={(e) => {
-          const at = draggingRef.current;
-          if (at === null) return;
+          const dragged = draggingRef.current;
+          if (dragged === null) return;
           const { y } = pointFromEvent(e);
-          setBezier((current) =>
-            reshapeAt(current, cubicBezierParamAtX(current, at), y),
-          );
+          setBezier((current) => reshapeAt(current, dragged, y));
         }}
         onPointerUp={(e) => {
           draggingRef.current = null;
@@ -322,7 +359,7 @@ export function EasingEditor() {
             no longer something to aim at: a control point sits off the curve, on the end of a
             line, at a position most of a cubic's users have no intuition for — and dragging one
             to the far end of its range put it outside the canvas entirely. */}
-        {HANDLE_POSITIONS.map((at) => (
+        {HANDLE_POSITIONS.map((at, index) => (
           <circle
             key={at}
             cx={toSvgX(at)}
@@ -332,7 +369,7 @@ export function EasingEditor() {
             className="cursor-ns-resize fill-white stroke-brand-500 dark:fill-zinc-800"
             strokeWidth={HANDLE_STROKE}
             onPointerDown={(e) => {
-              draggingRef.current = at;
+              draggingRef.current = index;
               svgRef.current?.setPointerCapture(e.pointerId);
             }}
           />
