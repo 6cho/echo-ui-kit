@@ -194,6 +194,9 @@ const TILE_PAD = 10;
 // where doubling them for claymorphism is the whole point; at 24px across, the same radius is
 // half the shape and turns every example into a circle.
 const SHAPE_RADIUS = 6;
+// The mark that tells one side of the rotating square from the other three.
+const SHAPE_DOT = 6;
+const SHAPE_DOT_INSET = 3;
 
 function Tile({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -279,20 +282,23 @@ function Examples({ eased }: { eased: number }) {
 
       <Tile label="Rotate">
         <Centred>
-          {/* An arrow, not the square the others use: a square is the same picture every quarter
-              turn, so half a turn of one is a very convincing animation of nothing at all. */}
-          <svg
-            viewBox="0 0 24 24"
-            className="fill-brand-600"
-            style={{
-              ...size,
-              borderRadius: 0,
-              transform: `rotate(${eased * 180}deg)`,
-            }}
-            aria-hidden="true"
+          {/* The same square as everywhere else, with one side marked. Without the mark a square
+              is the same picture every quarter turn, and half a turn of one is a very convincing
+              animation of nothing at all. */}
+          <div
+            className={`relative ${shape}`}
+            style={{ ...size, transform: `rotate(${eased * 180}deg)` }}
           >
-            <path d="M3 9.5h11V4l7 8-7 8v-5.5H3z" />
-          </svg>
+            <span
+              className="absolute rounded-full bg-white/90"
+              style={{
+                height: SHAPE_DOT,
+                width: SHAPE_DOT,
+                top: SHAPE_DOT_INSET,
+                left: (SHAPE - SHAPE_DOT) / 2,
+              }}
+            />
+          </div>
         </Centred>
       </Tile>
 
