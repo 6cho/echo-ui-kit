@@ -173,11 +173,26 @@ function principledSeedColors(columnScales: ColumnScale[]): string[] {
 /** Which column (0 = primary) a given hex's shade scale contains — used only to size its chip
  *  in the "Selected Palette" list, so the 60-30-10 role hierarchy stays visible even after
  *  manual additions/removals reorder or thin out the set. */
-function tierForHex(hex: string, columnScales: ColumnScale[]): number {
-  const index = columnScales.findIndex((scale) =>
-    scale.some((s) => s.hex === hex),
-  );
-  return index === -1 ? 0 : index;
+/**
+ * Where each colour sits in the palette's own layout: by column first, then light to dark within
+ * it, so a strip of them reads as the scheme rather than as the order they happened to be
+ * clicked in. The base colour's column is column zero, so it leads.
+ *
+ * Built as a lookup rather than searched per comparison — a sort calls its comparator O(n log n)
+ * times, and each call was scanning every step of every column. More to the point, the search
+ * returned -1 for anything it couldn't place and the caller read that as column zero, so a colour
+ * that wasn't in any scale sorted ahead of the base. Unplaceable colours now sort last, which is
+ * the only honest answer.
+ */
+function paletteOrder(columnScales: ColumnScale[]): Map<string, number> {
+  const order = new Map<string, number>();
+  columnScales.forEach((scale, column) => {
+    scale.forEach((step, tier) => {
+      const key = step.hex.toLowerCase();
+      if (!order.has(key)) order.set(key, column * 1000 + tier);
+    });
+  });
+  return order;
 }
 
 function SectionLabel({ children }: { children: ReactNode }) {
@@ -560,13 +575,12 @@ export function PaletteGenerator({
     ],
   );
 
-  const displaySelectedColors = useMemo(
-    () =>
-      [...selectedColors].sort(
-        (a, b) => tierForHex(a, columnScales) - tierForHex(b, columnScales),
-      ),
-    [selectedColors, columnScales],
-  );
+  const displaySelectedColors = useMemo(() => {
+    const order = paletteOrder(columnScales);
+    const place = (hex: string) =>
+      order.get(hex.toLowerCase()) ?? Number.MAX_SAFE_INTEGER;
+    return [...selectedColors].sort((a, b) => place(a) - place(b));
+  }, [selectedColors, columnScales]);
 
   // The complete description of what's currently being built, in the same shape saving produces —
   // so the parent can hand it straight to onSave, stash it as recent work, or read just its

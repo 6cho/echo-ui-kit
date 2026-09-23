@@ -472,9 +472,10 @@ export function AppShell() {
     () => workingPalette?.colors ?? [],
     [workingPalette],
   );
-  // Recolours the interface from the palette being built in it, live. Returns the accent it
-  // actually painted with, which a pale palette does not get to choose — see deriveAppTheme.
-  useAppTheme(workingColors, isAppThemed);
+  // Recolours the interface from the colour the palette is built on, live. The base rather than
+  // the palette: a triadic harmony off a red base contains a greener green, and picking the most
+  // colourful entry made the app go green while the control driving it said red.
+  useAppTheme(workingPalette?.baseColor ?? null, isAppThemed);
   const workingBaseColors = useMemo(
     () => workingPalette?.columns ?? [],
     [workingPalette],

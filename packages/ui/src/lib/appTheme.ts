@@ -2,25 +2,22 @@ import { deriveAppTheme } from "@echo-ui-kit/tools-core";
 import { useEffect, useMemo } from "react";
 
 /**
- * Paints the interface itself with the palette being built in it.
+ * Paints the interface itself with the colour the palette is being built on.
  *
  * Written as custom properties on the document root because that is where Tailwind's own tokens
  * live: `bg-brand-600` compiles to `var(--color-brand-600)`, so overriding the variable
  * re-colours every use of it at once, with no component knowing this happened. It also means the
- * change is live — the palette updates on every slider tick, and so does the app.
+ * change is live — the base colour updates on every slider tick, and so does the app.
  *
- * Note that the accent the app ends up with is not always the palette's own: a pale palette has
+ * Note that the accent the app ends up with is not always the base colour itself: a pale one has
  * its accent darkened until white text on a button is readable. Nothing here has to surface that,
  * because the header's own toggle paints with the same variable — whatever the interface is using
  * is what the toggle shows.
  */
-export function useAppTheme(colors: string[], enabled: boolean): void {
-  // Keyed on the contents rather than the array, which is a fresh object on every render of the
-  // generator — i.e. on every drag frame.
-  const key = colors.join(",");
+export function useAppTheme(baseColor: string | null, enabled: boolean): void {
   const theme = useMemo(
-    () => (enabled && key ? deriveAppTheme(key.split(",")) : null),
-    [key, enabled],
+    () => (enabled && baseColor ? deriveAppTheme(baseColor) : null),
+    [baseColor, enabled],
   );
 
   useEffect(() => {

@@ -72,43 +72,36 @@ function safeOklch(hex: string) {
 }
 
 /**
- * Recolours the interface from a palette.
+ * Recolours the interface from the colour a palette is built on.
  *
- * The app has one accent and a neutral ramp, so that is what a palette can drive: the accent
- * becomes the palette's most colourful entry, and the greys are re-hued to match it. There is no
+ * From the base colour specifically, not from the palette it produces. Picking the most colourful
+ * entry instead sounds reasonable and is wrong: a triadic harmony off a red base contains a green
+ * with more chroma than the red, so the app went green while the control that supposedly drove it
+ * said red. Every other colour on screen is derived from the base, and the interface is not an
+ * exception to that.
+ *
+ * The app has one accent and a neutral ramp, so that is what a colour can drive. There is no
  * secondary or tertiary here — adding those variables would change nothing, because nothing in
  * the interface paints with them.
  *
- * Only hue and chroma come from the palette. Every lightness is the interface's own, which is
- * what keeps this a skin rather than a way to make the app illegible with a bad palette.
+ * Only hue and chroma are taken. Every lightness is the interface's own, which is what keeps this
+ * a skin rather than a way to make the app illegible with a bad palette.
  */
-export function deriveAppTheme(palette: string[]): AppTheme | null {
-  const parsed = palette
-    .map((hex) => ({ hex, oklch: safeOklch(hex) }))
-    .filter(
-      (
-        entry,
-      ): entry is { hex: string; oklch: NonNullable<typeof entry.oklch> } =>
-        entry.oklch !== null,
-    );
-  if (parsed.length === 0) return null;
+export function deriveAppTheme(source: string): AppTheme | null {
+  const base = safeOklch(source);
+  if (!base) return null;
 
-  // The most colourful entry, which is almost always what a palette is about — the neutrals
-  // around it are scaffolding.
-  const accent = parsed.reduce((best, entry) =>
-    (entry.oklch.c ?? 0) > (best.oklch.c ?? 0) ? entry : best,
-  );
-  const hue = accent.oklch.h ?? 0;
-  const chroma = accent.oklch.c ?? 0;
+  const hue = base.h ?? 0;
+  const chroma = base.c ?? 0;
 
-  // A palette of pure greys has no hue to lend, and culori's hue for an achromatic colour is
-  // whatever fell out of the conversion. Anything with even a trace of colour is themed, so the
-  // tint arrives by fading in rather than by crossing a line.
+  // A colourless base has no hue to lend, and culori's hue for an achromatic colour is whatever
+  // fell out of the conversion. Anything with even a trace of colour is themed, so the tint
+  // arrives by fading in rather than by crossing a line.
   if (chroma < 0.002) return null;
 
-  // How much of the tint this palette has earned. Full colour gets all of it; a nearly grey
-  // palette gets nearly none, which is both what it should look like and what stops the effect
-  // switching on and off as a saturation slider passes a threshold.
+  // How much of the tint this colour has earned. Full colour gets all of it; a nearly grey one
+  // gets nearly none, which is both what it should look like and what stops the effect switching
+  // on and off as a saturation slider passes a threshold.
   const strength = Math.min(1, chroma / FULL_TINT_CHROMA);
   const neutralChroma = NEUTRAL_CHROMA * strength;
   const paleChroma = PALE_NEUTRAL_CHROMA * strength;
