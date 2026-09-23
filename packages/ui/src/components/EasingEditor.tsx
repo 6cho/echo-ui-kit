@@ -14,23 +14,64 @@ import { ToolColumns } from "./ToolColumns";
 // y is allowed outside 0–1 so an overshooting curve (a "back" ease) can be drawn where it actually
 // goes instead of being clipped flat at the edge of its own box.
 const SIZE = 200;
-const PAD = 44;
-const VIEW = SIZE + PAD * 2;
 const MIN_Y = -0.5;
 const MAX_Y = 1.5;
+const HANDLE_RADIUS = 8;
+const HANDLE_STROKE = 2.5;
+
+// Derived, not chosen. A handle dragged to MAX_Y sits half a square above the box, and it is a
+// circle, so the margin has to cover both or the thing you were dragging ends up outside the
+// canvas and can't be picked up again — which is exactly what a hand-picked 44 did. The extra few
+// pixels keep it from sitting flush against the edge at full stretch.
+const PAD =
+  Math.ceil(
+    Math.max(MAX_Y - 1, -MIN_Y) * SIZE + HANDLE_RADIUS + HANDLE_STROKE / 2,
+  ) + 8;
+const VIEW = SIZE + PAD * 2;
+
+// How far past its endpoints a curve actually travels, which is not how far its control points
+// may be dragged: a cubic bezier only gets about four ninths of the way to a control value. At
+// the extremes of the range above, the curve itself reaches -0.299 and 1.299 — measured across
+// the whole allowed range of both controls, not reasoned about.
+const MAX_OVERSHOOT = 0.3;
+const TRACK_SPAN = 1 + MAX_OVERSHOOT * 2;
+const DOT_SIZE = 20;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+/** Where a curve value sits along the outer track, as a fraction of it. */
+function trackFraction(value: number): number {
+  return clamp((value + MAX_OVERSHOOT) / TRACK_SPAN, 0, 1);
+}
+
+/** Left edge of something DOT_SIZE wide at that fraction, kept inside the track at either end. */
+function trackLeft(fraction: number): string {
+  return `calc(${fraction * 100}% - ${fraction * DOT_SIZE}px)`;
+}
 
 const MIN_DURATION = 100;
 const MAX_DURATION = 3000;
+
+// Where the preview settles, and where it starts. A loop running at its real speed the instant
+// the tool opens is a hard thing to look at — it arrives already going, and then never stops. It
+// opens at half speed instead and works up to the real one over the first few passes, so the
+// first thing you see is the shape of the curve rather than a flicker.
+const DEFAULT_DURATION = 1000;
+const WARMUP_DURATION = 2000;
+// Fraction of the remaining gap kept at the end of each loop: 2000, 1400, 1160, 1064, and then
+// close enough. Geometric rather than linear so the early passes differ most, which is what
+// reads as speeding up rather than as a sequence of different speeds.
+const WARMUP_DECAY = 0.4;
+// Below this the next step isn't visible, so it stops rather than converging forever.
+const WARMUP_SETTLE_MS = 25;
 
 function toSvgX(x: number): number {
   return PAD + x * SIZE;
 }
 function toSvgY(y: number): number {
   return PAD + (1 - y) * SIZE;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
 }
 
 export function EasingEditor() {
@@ -40,11 +81,26 @@ export function EasingEditor() {
     x2: 0.2,
     y2: 1,
   });
-  const [duration, setDuration] = useState(600);
+  const [duration, setDuration] = useState(DEFAULT_DURATION);
   const [progress, setProgress] = useState(0);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const draggingRef = useRef<"p1" | "p2" | null>(null);
+  // Read by the animation loop, which is mounted once and must not be torn down and restarted on
+  // every tick of the duration slider — that would reset the loop mid-pass on every drag frame.
+  const durationRef = useRef(duration);
+  // What the loop is actually running at, which is only the duration once it has warmed up.
+  const playbackRef = useRef(WARMUP_DURATION);
+
+  useEffect(() => {
+    durationRef.current = duration;
+  }, [duration]);
+
+  /** Reaching for the slider is taking control of the speed, so the warm-up stops there. */
+  function handleDurationChange(next: number) {
+    setDuration(next);
+    playbackRef.current = next;
+  }
 
   const css = useMemo(
     () => formatEasingCss(bezier, duration),
@@ -59,14 +115,25 @@ export function EasingEditor() {
     let frame = 0;
     let start = performance.now();
     function tick(now: number) {
+      const cycle = playbackRef.current;
       const elapsed = now - start;
-      if (elapsed >= duration) start = now;
-      setProgress(Math.min(1, (elapsed % duration) / duration));
+      if (elapsed >= cycle) {
+        start = now;
+        // Speed up between passes, never during one: changing the rate mid-travel would make the
+        // dot jump, which is the opposite of what the ramp is for.
+        const target = durationRef.current;
+        const next = target + (cycle - target) * WARMUP_DECAY;
+        playbackRef.current =
+          Math.abs(next - target) < WARMUP_SETTLE_MS ? target : next;
+        setProgress(0);
+      } else {
+        setProgress(elapsed / cycle);
+      }
       frame = requestAnimationFrame(tick);
     }
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [duration]);
+  }, []);
 
   function pointFromEvent(e: React.PointerEvent): { x: number; y: number } {
     const rect = svgRef.current?.getBoundingClientRect();
@@ -83,6 +150,10 @@ export function EasingEditor() {
   }
 
   const eased = cubicBezierProgress(bezier, progress);
+  // Read off the control values rather than the animated position, so the note doesn't blink on
+  // and off as the dot passes through the overshooting part of its own travel.
+  const overshoots =
+    bezier.y1 < 0 || bezier.y2 < 0 || bezier.y1 > 1 || bezier.y2 > 1;
   const activePreset = EASING_PRESETS.find(
     (p) =>
       p.value.x1 === bezier.x1 &&
@@ -191,13 +262,34 @@ export function EasingEditor() {
       {/* The same easing applied to motion. A curve you can only read as a shape doesn't tell you
           how it feels, which is the only thing that actually decides whether it's right. */}
       <div className="flex flex-col gap-1.5">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-          Preview
-        </span>
-        <div className="relative h-8 rounded-lg border border-black/10 bg-zinc-100 dark:border-white/10 dark:bg-surface-elevated">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+            Preview
+          </span>
+          {overshoots && (
+            <span className="text-[11px] text-zinc-500">
+              Overshoots its own range
+            </span>
+          )}
+        </div>
+        {/* Two frames, because the dot genuinely does leave the distance it was asked to travel.
+            The inner one is that distance — where the animation starts and stops. The outer one
+            is the room an overshooting ease needs on either side of it. With one frame the dot
+            either escapes the box, which reads as a rendering fault, or gets clipped, which is a
+            lie about what the easing does. */}
+        <div className="relative h-12 rounded-xl border border-black/10 border-dashed dark:border-white/10">
           <div
-            className="absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-md bg-brand-600"
-            style={{ left: `calc(${eased * 100}% - ${eased * 20}px)` }}
+            className="clay-inset absolute inset-y-2 rounded-lg bg-zinc-100 dark:bg-surface-elevated"
+            style={{
+              left: trackLeft(trackFraction(0)),
+              width: `calc(${(trackFraction(1) - trackFraction(0)) * 100}% + ${
+                DOT_SIZE - (trackFraction(1) - trackFraction(0)) * DOT_SIZE
+              }px)`,
+            }}
+          />
+          <div
+            className="clay absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-md bg-brand-600"
+            style={{ left: trackLeft(trackFraction(eased)) }}
           />
         </div>
       </div>
@@ -209,7 +301,7 @@ export function EasingEditor() {
         max={MAX_DURATION}
         step={50}
         displayValue={`${duration}ms`}
-        onChange={setDuration}
+        onChange={handleDurationChange}
       />
 
       <div className="flex flex-col gap-1.5">
