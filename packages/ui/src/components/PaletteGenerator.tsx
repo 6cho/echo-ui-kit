@@ -898,7 +898,7 @@ export function PaletteGenerator({
                   <select
                     value={harmony}
                     onChange={(e) => setHarmony(e.target.value as HarmonyType)}
-                    className="h-full w-full cursor-pointer appearance-none rounded-lg border border-black/10 bg-zinc-100 py-1.5 pr-8 pl-2.5 text-xs font-medium text-zinc-900 outline-none focus:border-brand-500 dark:border-white/10 dark:bg-surface-elevated dark:text-zinc-100"
+                    className="clay-inset h-full w-full cursor-pointer appearance-none rounded-lg bg-zinc-100 py-1.5 pr-8 pl-2.5 text-xs font-medium text-zinc-900 outline-none focus:border-brand-500 dark:border-white/10 dark:bg-surface-elevated dark:text-zinc-100"
                   >
                     {HARMONY_TYPES.map((type) => (
                       <option key={type} value={type}>

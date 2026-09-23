@@ -88,7 +88,7 @@ function PresetSelect({
           value={value}
           title={title}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full cursor-pointer appearance-none rounded-lg border border-black/10 bg-zinc-100 py-1.5 pr-8 pl-2.5 text-xs font-medium text-zinc-900 outline-none focus:border-brand-500 dark:border-white/10 dark:bg-surface-elevated dark:text-zinc-100"
+          className="clay-inset w-full cursor-pointer appearance-none rounded-lg bg-zinc-100 py-1.5 pr-8 pl-2.5 text-xs font-medium text-zinc-900 outline-none focus:border-brand-500 dark:border-white/10 dark:bg-surface-elevated dark:text-zinc-100"
         >
           {groups
             ? groups.map((group) => (

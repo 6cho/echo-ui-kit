@@ -54,7 +54,7 @@ export function ToolSwitcher({
         title="Switch tool"
         aria-haspopup="menu"
         aria-expanded={isOpen}
-        className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-black/10 bg-zinc-100 py-1.5 pr-2 pl-2.5 text-xs font-medium text-zinc-900 transition hover:bg-zinc-200 active:scale-95 dark:border-white/10 dark:bg-surface-elevated dark:text-zinc-100 dark:hover:bg-surface-hover"
+        className="clay flex cursor-pointer items-center gap-1.5 rounded-lg bg-zinc-100 py-1.5 pr-2 pl-2.5 text-xs font-medium text-zinc-900 transition hover:bg-zinc-200 active:scale-95 dark:border-white/10 dark:bg-surface-elevated dark:text-zinc-100 dark:hover:bg-surface-hover"
       >
         <span className="whitespace-nowrap">{active?.label ?? "Tools"}</span>
         <span className="text-[10px] text-zinc-500">▾</span>
@@ -66,7 +66,7 @@ export function ToolSwitcher({
           // the menu is wider than it — anchoring right would grow the menu leftward, straight
           // off the panel, where it gets clipped. Capped and scrollable since the list is long
           // enough to outgrow a short viewport.
-          className="absolute left-0 z-20 mt-1 flex max-h-[70vh] w-60 flex-col overflow-y-auto rounded-lg border border-black/10 bg-white py-1 shadow-lg dark:border-white/10 dark:bg-surface-elevated"
+          className="absolute left-0 z-20 mt-1 flex max-h-[70vh] w-60 flex-col overflow-y-auto clay rounded-lg border border-black/10 bg-white py-1 dark:border-white/10 dark:bg-surface-elevated"
         >
           {groups.map((group) => (
             <div key={group.name} className="flex flex-col">

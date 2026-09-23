@@ -138,7 +138,7 @@ export function DriftView({
           <select
             value={reference?.id ?? ""}
             onChange={(e) => setPaletteId(e.target.value)}
-            className="w-full cursor-pointer appearance-none rounded-lg border border-black/10 bg-zinc-100 py-1.5 pr-8 pl-2.5 text-xs font-medium text-zinc-900 outline-none focus:border-brand-500 dark:border-white/10 dark:bg-surface-elevated dark:text-zinc-100"
+            className="clay-inset w-full cursor-pointer appearance-none rounded-lg bg-zinc-100 py-1.5 pr-8 pl-2.5 text-xs font-medium text-zinc-900 outline-none focus:border-brand-500 dark:border-white/10 dark:bg-surface-elevated dark:text-zinc-100"
           >
             {palettes.map((palette) => (
               <option key={palette.id} value={palette.id}>
@@ -202,7 +202,7 @@ export function DriftView({
             onChange={(e) => setPasted(e.target.value)}
             rows={4}
             placeholder="Paste CSS, a theme file, or a list of hex codes"
-            className="w-full resize-y rounded-lg border border-black/10 bg-zinc-100 p-2 font-mono text-[11px] text-zinc-800 outline-none placeholder:text-zinc-400 focus:border-brand-500 dark:border-white/10 dark:bg-surface-elevated dark:text-zinc-200"
+            className="clay-inset w-full resize-y rounded-lg bg-zinc-100 p-2 font-mono text-[11px] text-zinc-800 outline-none placeholder:text-zinc-400 focus:border-brand-500 dark:border-white/10 dark:bg-surface-elevated dark:text-zinc-200"
           />
         )}
       </div>

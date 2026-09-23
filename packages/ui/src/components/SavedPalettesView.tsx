@@ -48,7 +48,7 @@ function PaletteRow({
   trailingItem: MenuItem;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-black/10 bg-zinc-100 p-2.5 dark:border-white/10 dark:bg-surface-elevated">
+    <div className="clay flex items-center gap-3 rounded-lg bg-zinc-100 p-2.5 dark:border-white/10 dark:bg-surface-elevated">
       {/* The base color at a size you can actually judge — it's the one color the whole palette
           was derived from, so it deserves more than an equal share of a row of identical dots. */}
       <div
@@ -107,7 +107,7 @@ function ColorChip({
   onAction: (id: string) => void;
 }) {
   return (
-    <div className="flex items-center gap-1.5 rounded-full border border-black/10 bg-zinc-100 py-1 pr-1.5 pl-1 dark:border-white/10 dark:bg-surface-elevated">
+    <div className="clay flex items-center gap-1.5 rounded-full bg-zinc-100 py-1 pr-1.5 pl-1 dark:border-white/10 dark:bg-surface-elevated">
       <span
         className="h-5 w-5 shrink-0 rounded-full border border-black/10 dark:border-white/10"
         style={{ backgroundColor: color.hex }}

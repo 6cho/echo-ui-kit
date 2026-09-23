@@ -70,7 +70,7 @@ export function CssOutput({
       {/* overflow-x-auto on the <pre> itself, not a wrapper — long declarations shouldn't wrap
           (that would misrepresent the code you're copying) but they can't widen the panel
           either. */}
-      <pre className="max-h-72 overflow-auto rounded-lg border border-black/10 bg-zinc-100 p-3 font-mono text-[11px] leading-relaxed text-zinc-800 dark:border-white/10 dark:bg-surface-elevated dark:text-zinc-200">
+      <pre className="clay-inset max-h-72 overflow-auto rounded-lg bg-zinc-100 p-3 font-mono text-[11px] leading-relaxed text-zinc-800 dark:border-white/10 dark:bg-surface-elevated dark:text-zinc-200">
         {code}
       </pre>
     </div>
