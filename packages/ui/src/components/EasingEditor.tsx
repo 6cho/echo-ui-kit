@@ -16,24 +16,28 @@ import { ToolColumns } from "./ToolColumns";
 const SIZE = 200;
 const MIN_Y = -0.5;
 const MAX_Y = 1.5;
-const HANDLE_RADIUS = 8;
+const HANDLE_RADIUS = 7;
 const HANDLE_STROKE = 2.5;
 
-// Derived, not chosen. A handle dragged to MAX_Y sits half a square above the box, and it is a
-// circle, so the margin has to cover both or the thing you were dragging ends up outside the
-// canvas and can't be picked up again — which is exactly what a hand-picked 44 did. The extra few
-// pixels keep it from sitting flush against the edge at full stretch.
+// How far past its endpoints a curve actually travels, which is not how far its control values
+// may be set: a cubic bezier only gets about four ninths of the way to a control value. At the
+// extremes of the range above, the curve itself reaches -0.299 and 1.299 — measured across the
+// whole allowed range of both controls, not reasoned about.
+const MAX_OVERSHOOT = 0.3;
+
+// Derived, not chosen. Everything draggable now sits on the curve, so the margin only has to
+// cover where the curve goes, plus the handle's own radius. When the handles were the control
+// points themselves this had to cover half a square — they could be dragged to y = 1.5 while the
+// curve they shaped never went past 1.3, and the margin that bought was mostly empty frame.
 const PAD =
-  Math.ceil(
-    Math.max(MAX_Y - 1, -MIN_Y) * SIZE + HANDLE_RADIUS + HANDLE_STROKE / 2,
-  ) + 8;
+  Math.ceil(MAX_OVERSHOOT * SIZE + HANDLE_RADIUS + HANDLE_STROKE / 2) + 8;
 const VIEW = SIZE + PAD * 2;
 
-// How far past its endpoints a curve actually travels, which is not how far its control points
-// may be dragged: a cubic bezier only gets about four ninths of the way to a control value. At
-// the extremes of the range above, the curve itself reaches -0.299 and 1.299 — measured across
-// the whole allowed range of both controls, not reasoned about.
-const MAX_OVERSHOOT = 0.3;
+// Where the grab points sit along the curve. Three is enough to shape a cubic and few enough that
+// they never crowd each other: the outer two lean on one control value each, the middle one on
+// both equally.
+const HANDLE_POSITIONS = [0.25, 0.5, 0.75] as const;
+
 const TRACK_SPAN = 1 + MAX_OVERSHOOT * 2;
 
 // The preview's geometry. Only the first three are chosen; the horizontal spacing is derived from
@@ -63,6 +67,58 @@ function trackFraction(value: number): number {
 /** Left edge of the dot at a given curve value. */
 function dotLeft(value: number): string {
   return `calc(${TRACK_INSET}px + ${trackFraction(value)} * ${TRAVEL})`;
+}
+
+/**
+ * How much each control value counts toward the curve at a given point along it.
+ *
+ * These are the two middle Bernstein terms. They are what makes a control point a *control* point
+ * rather than a point: at t the curve sits at weight1 * P1 + weight2 * P2 + t³, with the
+ * endpoints fixed at 0 and 1.
+ */
+function weightsAt(t: number): { weight1: number; weight2: number } {
+  return { weight1: 3 * (1 - t) ** 2 * t, weight2: 3 * (1 - t) * t ** 2 };
+}
+
+/** Where the curve is at a point along it. */
+function pointAt(bezier: CubicBezier, t: number): { x: number; y: number } {
+  const { weight1, weight2 } = weightsAt(t);
+  const end = t ** 3;
+  return {
+    x: weight1 * bezier.x1 + weight2 * bezier.x2 + end,
+    y: weight1 * bezier.y1 + weight2 * bezier.y2 + end,
+  };
+}
+
+/**
+ * Moves the curve so the point at `t` lands on `target`.
+ *
+ * Two control points, two coordinates, one point to satisfy — the system is short of constraints,
+ * so something has to decide how the correction is shared out. It goes to each control point in
+ * proportion to how much that point was influencing `t` in the first place, which is the solution
+ * that moves the curve's shape least to get there.
+ *
+ * In practice that means the handle nearest an end mostly bends the control point nearest that
+ * end, while the middle handle bows both equally — which is what dragging a physical curve feels
+ * like, and is why the tangent lines this replaces were never needed to explain it.
+ */
+function reshapeAt(
+  bezier: CubicBezier,
+  t: number,
+  target: { x: number; y: number },
+): CubicBezier {
+  const { weight1, weight2 } = weightsAt(t);
+  const share = weight1 ** 2 + weight2 ** 2;
+  if (share === 0) return bezier;
+  const current = pointAt(bezier, t);
+  const dx = target.x - current.x;
+  const dy = target.y - current.y;
+  return {
+    x1: clamp(bezier.x1 + (dx * weight1) / share, 0, 1),
+    y1: clamp(bezier.y1 + (dy * weight1) / share, MIN_Y, MAX_Y),
+    x2: clamp(bezier.x2 + (dx * weight2) / share, 0, 1),
+    y2: clamp(bezier.y2 + (dy * weight2) / share, MIN_Y, MAX_Y),
+  };
 }
 
 const MIN_DURATION = 100;
@@ -99,7 +155,8 @@ export function EasingEditor() {
   const [progress, setProgress] = useState(0);
 
   const svgRef = useRef<SVGSVGElement>(null);
-  const draggingRef = useRef<"p1" | "p2" | null>(null);
+  // Which point along the curve is being dragged, if any.
+  const draggingRef = useRef<number | null>(null);
   // Read by the animation loop, which is mounted once and must not be torn down and restarted on
   // every tick of the duration slider — that would reset the loop mid-pass on every drag frame.
   const durationRef = useRef(duration);
@@ -157,9 +214,11 @@ export function EasingEditor() {
     const scale = rect.width / VIEW;
     const localX = (e.clientX - rect.left) / scale;
     const localY = (e.clientY - rect.top) / scale;
+    // Clamped to where the curve can actually go, not to where the control values may be set.
+    // Dragging into the strip between those two is dragging into nothing.
     return {
       x: clamp((localX - PAD) / SIZE, 0, 1),
-      y: clamp(1 - (localY - PAD) / SIZE, MIN_Y, MAX_Y),
+      y: clamp(1 - (localY - PAD) / SIZE, -MAX_OVERSHOOT, 1 + MAX_OVERSHOOT),
     };
   }
 
@@ -183,13 +242,10 @@ export function EasingEditor() {
         viewBox={`0 0 ${VIEW} ${VIEW}`}
         className="w-full touch-none select-none rounded-lg border border-black/10 bg-zinc-100 dark:border-white/10 dark:bg-surface-elevated"
         onPointerMove={(e) => {
-          if (!draggingRef.current) return;
-          const { x, y } = pointFromEvent(e);
-          setBezier((c) =>
-            draggingRef.current === "p1"
-              ? { ...c, x1: x, y1: y }
-              : { ...c, x2: x, y2: y },
-          );
+          const t = draggingRef.current;
+          if (t === null) return;
+          const target = pointFromEvent(e);
+          setBezier((current) => reshapeAt(current, t, target));
         }}
         onPointerUp={(e) => {
           draggingRef.current = null;
@@ -216,23 +272,6 @@ export function EasingEditor() {
           strokeWidth={1}
         />
 
-        <line
-          x1={toSvgX(0)}
-          y1={toSvgY(0)}
-          x2={toSvgX(bezier.x1)}
-          y2={toSvgY(bezier.y1)}
-          className="stroke-brand-500/40"
-          strokeWidth={1.5}
-        />
-        <line
-          x1={toSvgX(1)}
-          y1={toSvgY(1)}
-          x2={toSvgX(bezier.x2)}
-          y2={toSvgY(bezier.y2)}
-          className="stroke-brand-500/40"
-          strokeWidth={1.5}
-        />
-
         <path
           d={`M ${toSvgX(0)} ${toSvgY(0)} C ${toSvgX(bezier.x1)} ${toSvgY(bezier.y1)}, ${toSvgX(bezier.x2)} ${toSvgY(bezier.y2)}, ${toSvgX(1)} ${toSvgY(1)}`}
           className="fill-none stroke-brand-500"
@@ -249,28 +288,31 @@ export function EasingEditor() {
           className="fill-brand-600"
         />
 
-        {(
-          [
-            { id: "p1", x: bezier.x1, y: bezier.y1 },
-            { id: "p2", x: bezier.x2, y: bezier.y2 },
-          ] as const
-        ).map((handle) => (
-          <circle
-            key={handle.id}
-            cx={toSvgX(handle.x)}
-            cy={toSvgY(handle.y)}
-            r={8}
-            className="cursor-grab fill-white stroke-brand-500 active:cursor-grabbing dark:fill-zinc-800"
-            strokeWidth={2.5}
-            onPointerDown={(e) => {
-              draggingRef.current = handle.id;
-              svgRef.current?.setPointerCapture(e.pointerId);
-            }}
-          />
-        ))}
+        {/* Grab points on the curve itself. The control points they stand in for are still what
+            gets written to the CSS, but they are no longer something to aim at: a control point
+            sits off the curve, on the end of a line, at a position most of a cubic's users have
+            no intuition for — and dragging one to the far end of its range put it outside the
+            canvas entirely. */}
+        {HANDLE_POSITIONS.map((t) => {
+          const point = pointAt(bezier, t);
+          return (
+            <circle
+              key={t}
+              cx={toSvgX(point.x)}
+              cy={toSvgY(point.y)}
+              r={HANDLE_RADIUS}
+              className="cursor-grab fill-white stroke-brand-500 active:cursor-grabbing dark:fill-zinc-800"
+              strokeWidth={HANDLE_STROKE}
+              onPointerDown={(e) => {
+                draggingRef.current = t;
+                svgRef.current?.setPointerCapture(e.pointerId);
+              }}
+            />
+          );
+        })}
       </svg>
       <p className="-mt-2 text-[11px] text-zinc-500">
-        Drag either handle to reshape the curve.
+        Drag any point on the curve to reshape it.
       </p>
 
       {/* The same easing applied to motion. A curve you can only read as a shape doesn't tell you
