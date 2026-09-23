@@ -374,12 +374,12 @@ function Examples({ eased }: { eased: number }) {
             />
           ))}
           {/* On the edge that leads the way in, so there is something to watch overshoot past
-              the resting place and come back. Accent rather than white: this is the one moving
-              thing here that is itself a pale surface, and a white mark on it would be
-              invisible — the mark matching what the panel holds is the consistency that
-              actually reads. */}
+              the resting place and come back. White like every other mark here, with a hairline
+              ring: this is the one moving thing that is itself a pale surface, and in light mode
+              white on white is nothing at all. The ring costs no layout and disappears against
+              the dark surface, where the white already reads on its own. */}
           <Dot
-            className="bg-brand-600"
+            className="bg-white shadow-[0_0_0_1px_rgb(0_0_0_/_0.15)]"
             style={{
               left: "auto",
               right: SHAPE_DOT,
