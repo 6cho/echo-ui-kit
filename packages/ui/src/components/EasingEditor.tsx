@@ -35,20 +35,34 @@ const VIEW = SIZE + PAD * 2;
 // the whole allowed range of both controls, not reasoned about.
 const MAX_OVERSHOOT = 0.3;
 const TRACK_SPAN = 1 + MAX_OVERSHOOT * 2;
+
+// The preview's geometry. Only the first three are chosen; the horizontal spacing is derived from
+// them, because a dot with room above and below it but sitting flush against the end of its own
+// track is the thing that looks wrong. Padding it by the same margin in both directions is what
+// makes an ordinary ease read as a pill travelling inside a pill.
+const TRACK_HEIGHT = 48;
+const TRACK_INSET = 8;
 const DOT_SIZE = 20;
+// What's left above and below the dot inside the inner track — and so what's left at either end
+// of it too.
+const DOT_INSET = (TRACK_HEIGHT - TRACK_INSET * 2 - DOT_SIZE) / 2;
+// The distance the dot's left edge can cover: the outer frame, less the padding at both ends and
+// the dot's own width. Overshoot is spent out of this, which is why the outer frame's padding is
+// what an overshooting dot keeps from the dashed edge.
+const TRAVEL = `(100% - ${TRACK_INSET * 2 + DOT_SIZE}px)`;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-/** Where a curve value sits along the outer track, as a fraction of it. */
+/** Where a curve value sits along the outer frame's full travel, as a fraction of it. */
 function trackFraction(value: number): number {
   return clamp((value + MAX_OVERSHOOT) / TRACK_SPAN, 0, 1);
 }
 
-/** Left edge of something DOT_SIZE wide at that fraction, kept inside the track at either end. */
-function trackLeft(fraction: number): string {
-  return `calc(${fraction * 100}% - ${fraction * DOT_SIZE}px)`;
+/** Left edge of the dot at a given curve value. */
+function dotLeft(value: number): string {
+  return `calc(${TRACK_INSET}px + ${trackFraction(value)} * ${TRAVEL})`;
 }
 
 const MIN_DURATION = 100;
@@ -277,19 +291,30 @@ export function EasingEditor() {
             is the room an overshooting ease needs on either side of it. With one frame the dot
             either escapes the box, which reads as a rendering fault, or gets clipped, which is a
             lie about what the easing does. */}
-        <div className="relative h-12 rounded-xl border border-black/10 border-dashed dark:border-white/10">
+        <div
+          className="relative rounded-xl border border-black/10 border-dashed dark:border-white/10"
+          style={{ height: TRACK_HEIGHT }}
+        >
+          {/* Brackets the 0-to-1 travel, with the dot's own margin added at either end so it has
+              the same clearance sideways as it does up and down. */}
           <div
-            className="clay-inset absolute inset-y-2 rounded-lg bg-zinc-100 dark:bg-surface-elevated"
+            className="clay-inset absolute rounded-lg bg-zinc-100 dark:bg-surface-elevated"
             style={{
-              left: trackLeft(trackFraction(0)),
-              width: `calc(${(trackFraction(1) - trackFraction(0)) * 100}% + ${
-                DOT_SIZE - (trackFraction(1) - trackFraction(0)) * DOT_SIZE
+              top: TRACK_INSET,
+              bottom: TRACK_INSET,
+              left: `calc(${TRACK_INSET - DOT_INSET}px + ${trackFraction(0)} * ${TRAVEL})`,
+              width: `calc(${trackFraction(1) - trackFraction(0)} * ${TRAVEL} + ${
+                DOT_SIZE + DOT_INSET * 2
               }px)`,
             }}
           />
           <div
-            className="clay absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-md bg-brand-600"
-            style={{ left: trackLeft(trackFraction(eased)) }}
+            className="clay -translate-y-1/2 absolute top-1/2 rounded-md bg-brand-600"
+            style={{
+              left: dotLeft(eased),
+              height: DOT_SIZE,
+              width: DOT_SIZE,
+            }}
           />
         </div>
       </div>
