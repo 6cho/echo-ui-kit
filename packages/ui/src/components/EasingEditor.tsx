@@ -302,18 +302,36 @@ function Examples({ eased }: { eased: number }) {
         </Centred>
       </Tile>
 
-      <Tile label="Drop">
-        <Centred>
-          <div
-            className={shape}
-            style={{
-              ...size,
-              // Starts above its resting place and arrives at it, so an overshooting curve dips
-              // below and settles — the one example where overshoot looks like what it is for.
-              transform: `translateY(${(1 - eased) * -22}px)`,
-            }}
-          />
-        </Centred>
+      <Tile label="Slide">
+        {/* The job most easing curves are actually picked for, at the size it is picked at. Two
+            properties moving off one curve, because that is what a drawer does: the panel travels
+            and the scrim behind it darkens, and a curve that suits one and not the other is worth
+            finding out about here rather than in the app. */}
+        <div
+          className="absolute inset-0 bg-black/40"
+          style={{ opacity: clamp(eased, 0, 1) }}
+        />
+        <div
+          className="absolute inset-y-0 left-0 flex flex-col justify-center gap-1.5 bg-brand-600 px-2"
+          style={{
+            width: "55%",
+            borderTopRightRadius: SHAPE_RADIUS,
+            borderBottomRightRadius: SHAPE_RADIUS,
+            // Its own width, so it starts exactly off the edge whatever the tile measures. An
+            // overshoot pushes it past its resting place and back, which is the whole reason a
+            // drawer gets an overshooting curve; an undershoot just holds it further offscreen,
+            // where being clipped is the correct thing to happen to it.
+            transform: `translateX(${(eased - 1) * 100}%)`,
+          }}
+        >
+          {[0.85, 0.6, 0.75].map((width) => (
+            <span
+              key={width}
+              className="h-1 rounded-full bg-white/80"
+              style={{ width: `${width * 100}%` }}
+            />
+          ))}
+        </div>
       </Tile>
 
       <Tile label="Stretch">
