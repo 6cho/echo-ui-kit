@@ -1,0 +1,178 @@
+import { contrastRatio } from "../color/contrast";
+import { toHex, toOklch } from "../color/convert";
+
+/**
+ * The app's own neutral ramp, by lightness.
+ *
+ * These are the OKLCH lightnesses of Tailwind's zinc scale, which is what the interface is built
+ * out of. Keeping them exactly is the point: the tint re-hues the greys without moving a single
+ * step's lightness, so every contrast the interface already relies on survives it. A palette can
+ * change what colour the chrome is, but it doesn't get to decide whether the text is readable.
+ */
+const NEUTRAL_STEPS: [step: number, lightness: number][] = [
+  [50, 0.985],
+  [100, 0.967],
+  [200, 0.92],
+  [300, 0.871],
+  [400, 0.705],
+  [500, 0.552],
+  [600, 0.442],
+  [700, 0.37],
+  [800, 0.274],
+  [900, 0.21],
+];
+
+/**
+ * The dark-mode chrome, likewise by lightness — the three tiers the side panel layers with.
+ * Measured from the greys they replace (#202124, #2d2e31, #37383c) so the layering keeps its
+ * spacing.
+ */
+const SURFACE_STEPS: [name: string, lightness: number][] = [
+  ["surface", 0.262],
+  ["surface-elevated", 0.335],
+  ["surface-hover", 0.393],
+];
+
+// Enough hue to be unmistakable, little enough to still read as grey. Past about 0.03 the
+// interface stops looking tinted and starts looking coloured, which fights whatever palette is
+// being shown inside it.
+const NEUTRAL_CHROMA = 0.016;
+// The lightest steps take less: at 98% lightness the same chroma reads as a wash of colour
+// rather than a tint, and white-ish surfaces are most of the interface's area.
+const PALE_NEUTRAL_CHROMA = 0.007;
+const PALE_THRESHOLD = 0.9;
+
+// Filled buttons are brand-600 with white text, so it has to clear AA or the app's own primary
+// action becomes unreadable. A pale palette gets its accent darkened until it does.
+const ON_PRIMARY = "#ffffff";
+const PRIMARY_MIN_CONTRAST = 4.5;
+
+export interface AppTheme {
+  /** Custom properties to set on the document root. */
+  variables: Record<string, string>;
+  /** What the app will actually paint its accents with. */
+  primary: string;
+}
+
+function safeOklch(hex: string) {
+  try {
+    return toOklch(hex);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Recolours the interface from a palette.
+ *
+ * The app has one accent and a neutral ramp, so that is what a palette can drive: the accent
+ * becomes the palette's most colourful entry, and the greys are re-hued to match it. There is no
+ * secondary or tertiary here — adding those variables would change nothing, because nothing in
+ * the interface paints with them.
+ *
+ * Only hue and chroma come from the palette. Every lightness is the interface's own, which is
+ * what keeps this a skin rather than a way to make the app illegible with a bad palette.
+ */
+export function deriveAppTheme(palette: string[]): AppTheme | null {
+  const parsed = palette
+    .map((hex) => ({ hex, oklch: safeOklch(hex) }))
+    .filter(
+      (
+        entry,
+      ): entry is { hex: string; oklch: NonNullable<typeof entry.oklch> } =>
+        entry.oklch !== null,
+    );
+  if (parsed.length === 0) return null;
+
+  // The most colourful entry, which is almost always what a palette is about — the neutrals
+  // around it are scaffolding.
+  const accent = parsed.reduce((best, entry) =>
+    (entry.oklch.c ?? 0) > (best.oklch.c ?? 0) ? entry : best,
+  );
+  const hue = accent.oklch.h ?? 0;
+  const chroma = accent.oklch.c ?? 0;
+
+  // A palette of pure greys has no hue to lend. Better to leave the interface alone than to tint
+  // it with an arbitrary one.
+  if (chroma < 0.02) return null;
+
+  const primary = darkenUntilReadable({ ...accent.oklch, h: hue, c: chroma });
+
+  const variables: Record<string, string> = {
+    // 500 is the lighter accent the interface uses for rings and marks; 600 is what it fills
+    // buttons with. The rest of the ramp is declared but unused — set anyway, so a component
+    // that reaches for it later gets a themed value rather than the stock blue.
+    "--color-brand-50": toHex({
+      mode: "oklch",
+      l: 0.97,
+      c: chroma * 0.25,
+      h: hue,
+    }),
+    "--color-brand-100": toHex({
+      mode: "oklch",
+      l: 0.93,
+      c: chroma * 0.4,
+      h: hue,
+    }),
+    "--color-brand-500": toHex({ mode: "oklch", l: 0.66, c: chroma, h: hue }),
+    "--color-brand-600": primary,
+    "--color-brand-900": toHex({
+      mode: "oklch",
+      l: 0.32,
+      c: chroma * 0.8,
+      h: hue,
+    }),
+    // A white that isn't quite white. Cards are most of the interface's area in light mode, and
+    // a tint this small is the difference between the palette theming the app and the palette
+    // theming its buttons.
+    "--color-white": toHex({
+      mode: "oklch",
+      l: 0.995,
+      c: PALE_NEUTRAL_CHROMA * 0.6,
+      h: hue,
+    }),
+  };
+
+  for (const [step, lightness] of NEUTRAL_STEPS) {
+    variables[`--color-zinc-${step}`] = toHex({
+      mode: "oklch",
+      l: lightness,
+      c: lightness > PALE_THRESHOLD ? PALE_NEUTRAL_CHROMA : NEUTRAL_CHROMA,
+      h: hue,
+    });
+  }
+
+  for (const [name, lightness] of SURFACE_STEPS) {
+    variables[`--color-${name}`] = toHex({
+      mode: "oklch",
+      l: lightness,
+      c: NEUTRAL_CHROMA,
+      h: hue,
+    });
+  }
+
+  return { variables, primary };
+}
+
+/**
+ * Walks the accent down in lightness until white text on it clears AA.
+ *
+ * A yellow or a pale mint is a perfectly good palette and a terrible button, and the palette tool
+ * exists partly to let people build exactly those. Refusing to theme would be the wrong answer —
+ * so the hue is kept and the lightness is spent until the contrast is there.
+ */
+function darkenUntilReadable(base: {
+  mode: "oklch";
+  l: number;
+  c: number;
+  h: number;
+}): string {
+  let lightness = Math.min(base.l, 0.62);
+  for (let attempt = 0; attempt < 24; attempt++) {
+    const hex = toHex({ ...base, l: lightness });
+    if (contrastRatio(hex, ON_PRIMARY) >= PRIMARY_MIN_CONTRAST) return hex;
+    lightness -= 0.025;
+    if (lightness <= 0.12) break;
+  }
+  return toHex({ ...base, l: 0.12 });
+}

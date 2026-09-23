@@ -11,12 +11,14 @@ import {
 import { usePageInspector } from "../context/PageContext";
 import { PanelColumnsProvider } from "../context/PanelLayoutContext";
 import { useStorage } from "../context/StorageContext";
+import { useAppTheme } from "../lib/appTheme";
 import { useTheme } from "../lib/theme";
 import type {
   SavedColor,
   SavedPalette,
   WorkingPalette,
 } from "../types/palette";
+import { AppThemeToggle } from "./AppThemeToggle";
 import { BoxEditor } from "./BoxEditor";
 import { ContrastView } from "./ContrastView";
 import { DriftView } from "./DriftView";
@@ -36,6 +38,7 @@ const SAVED_COLORS_KEY = "colors";
 const RECENT_PALETTES_KEY = "recentPalettes";
 const RECENT_COLORS_KEY = "recentColors";
 const LAYOUT_KEY = "layout";
+const APP_THEME_KEY = "appTheme";
 
 // How much unsaved history to keep. Small on purpose: this is a safety net for work you haven't
 // committed to yet, not an archive — anything you actually want kept has a Save button.
@@ -248,6 +251,8 @@ export function AppShell() {
   // Guards the write-back below from saving the default layout over the stored one in the gap
   // between the read landing and the restore being applied.
   const [isLayoutRestored, setIsLayoutRestored] = useState(false);
+  // Whether the palette being built is also painting the interface around it.
+  const [isAppThemed, setIsAppThemed] = useState(false);
   // Which slot is on its way out. It still holds its tool for the length of the fade — emptying
   // it first would take the panel away before there was anything to watch.
   const [exitingSlot, setExitingSlot] = useState<number | null>(null);
@@ -432,6 +437,9 @@ export function AppShell() {
     () => workingPalette?.colors ?? [],
     [workingPalette],
   );
+  // Recolours the interface from the palette being built in it, live. Returns the accent it
+  // actually painted with, which a pale palette does not get to choose — see deriveAppTheme.
+  useAppTheme(workingColors, isAppThemed);
   const workingBaseColors = useMemo(
     () => workingPalette?.columns ?? [],
     [workingPalette],
@@ -445,7 +453,8 @@ export function AppShell() {
       storage.get<SavedPalette[]>(RECENT_PALETTES_KEY),
       storage.get<SavedColor[]>(RECENT_COLORS_KEY),
       storage.get<unknown>(LAYOUT_KEY),
-    ]).then(([palettes, colors, recentP, recentC, layout]) => {
+      storage.get<boolean>(APP_THEME_KEY),
+    ]).then(([palettes, colors, recentP, recentC, layout, appThemed]) => {
       if (cancelled) return;
       setSavedPalettes(palettes ?? []);
       setSavedColors(colors ?? []);
@@ -458,6 +467,7 @@ export function AppShell() {
       if (recentP?.[0]) setPaletteToLoad(recentP[0]);
       if (layout) setPendingLayout(layout);
       else setIsLayoutRestored(true);
+      if (appThemed) setIsAppThemed(true);
       setIsStorageLoaded(true);
     });
     return () => {
@@ -474,6 +484,11 @@ export function AppShell() {
     if (!isStorageLoaded) return;
     storage.set(RECENT_COLORS_KEY, recentColors);
   }, [isStorageLoaded, recentColors, storage]);
+
+  useEffect(() => {
+    if (!isStorageLoaded) return;
+    storage.set(APP_THEME_KEY, isAppThemed);
+  }, [isStorageLoaded, isAppThemed, storage]);
 
   // Records the working palette once it's stopped changing. Deduped by its color list, so
   // returning to a palette already in the history moves it back to the front rather than
@@ -948,6 +963,11 @@ export function AppShell() {
             Front-end dev toolkit
           </span>
         </div>
+        <AppThemeToggle
+          colors={workingColors}
+          enabled={isAppThemed}
+          onToggle={() => setIsAppThemed((current) => !current)}
+        />
         <button
           type="button"
           onClick={toggleTheme}

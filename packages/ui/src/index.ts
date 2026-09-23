@@ -1,4 +1,5 @@
 export { AppShell } from "./components/AppShell";
+export { AppThemeToggle } from "./components/AppThemeToggle";
 export { BoxEditor } from "./components/BoxEditor";
 export { Checkbox } from "./components/Checkbox";
 export { CollapsibleSection } from "./components/CollapsibleSection";
@@ -40,6 +41,7 @@ export {
   usePanelColumns,
 } from "./context/PanelLayoutContext";
 export { StorageProvider, useStorage } from "./context/StorageContext";
+export { useAppTheme } from "./lib/appTheme";
 export { initTheme, type Theme, useTheme } from "./lib/theme";
 export type {
   SavedColor,

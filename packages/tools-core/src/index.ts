@@ -12,5 +12,6 @@ export * from "./css/filter";
 export * from "./css/gradient";
 export * from "./css/radius";
 export * from "./css/shadow";
+export * from "./export/appTheme";
 export * from "./export/theme";
 export * from "./export/tokens";
