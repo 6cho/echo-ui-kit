@@ -35,6 +35,7 @@ const SAVED_PALETTES_KEY = "palettes";
 const SAVED_COLORS_KEY = "colors";
 const RECENT_PALETTES_KEY = "recentPalettes";
 const RECENT_COLORS_KEY = "recentColors";
+const LAYOUT_KEY = "layout";
 
 // How much unsaved history to keep. Small on purpose: this is a safety net for work you haven't
 // committed to yet, not an archive — anything you actually want kept has a Save button.
@@ -94,6 +95,55 @@ const PANEL_EXIT_MS = PANEL_CONTENT_MS;
 
 function paletteKey(colors: string[]): string {
   return colors.join(",");
+}
+
+/**
+ * Lays a set of open tools out across a given number of slots, spreading the empty ones around
+ * them: two spare put one on each side, a single spare goes to the right. That is what centres a
+ * lone tool in a three-wide shell and sits it to the left of a two-wide one.
+ */
+function spreadSlots(open: ToolId[], count: number): (ToolId | null)[] {
+  const kept = open.slice(0, count);
+  const empty = count - kept.length;
+  const leading = Math.floor(empty / 2);
+  return [
+    ...Array<ToolId | null>(leading).fill(null),
+    ...kept,
+    ...Array<ToolId | null>(empty - leading).fill(null),
+  ];
+}
+
+/**
+ * Turns a layout read back from storage into one this shell can actually render.
+ *
+ * Exact positions are kept when the window still has the same number of slots, which is the
+ * common case and the whole point of saving it. Otherwise the tools are re-spread over however
+ * many there are now.
+ *
+ * Everything else here is guarding an invariant against a store that may not honour it. A tool
+ * id that no longer exists — "page", saved from the extension and read back in a web build —
+ * has to be dropped rather than rendered as a panel with nothing in it. A duplicate has to go
+ * too: a tool is a single mounted component, so a second slot claiming it would draw a header
+ * with no body while the first drew the body.
+ */
+function restoreSlots(
+  saved: unknown,
+  count: number,
+  available: ReadonlySet<string>,
+): (ToolId | null)[] | null {
+  if (!Array.isArray(saved)) return null;
+  const seen = new Set<string>();
+  const cleaned = saved.map((id) => {
+    if (typeof id !== "string" || !available.has(id) || seen.has(id)) {
+      return null;
+    }
+    seen.add(id);
+    return id as ToolId;
+  });
+  const open = cleaned.filter((id): id is ToolId => id !== null);
+  if (open.length === 0) return null;
+  if (cleaned.length === count) return cleaned;
+  return spreadSlots(open, count);
 }
 
 /**
@@ -192,6 +242,12 @@ export function AppShell() {
   } | null>(null);
   // A rail that has just appeared, so it can fade in rather than blink into place.
   const [enteringRail, setEnteringRail] = useState<number | null>(null);
+  // A layout read back from storage, held until the shell has been measured — how many slots it
+  // has to be fitted into isn't known until then, and on the web the read resolves first.
+  const [pendingLayout, setPendingLayout] = useState<unknown>(null);
+  // Guards the write-back below from saving the default layout over the stored one in the gap
+  // between the read landing and the restore being applied.
+  const [isLayoutRestored, setIsLayoutRestored] = useState(false);
   // Which slot is on its way out. It still holds its tool for the length of the fade — emptying
   // it first would take the panel away before there was anything to watch.
   const [exitingSlot, setExitingSlot] = useState<number | null>(null);
@@ -263,19 +319,14 @@ export function AppShell() {
   // two-wide one. Tools past the new limit are dropped from the end, preserving the first — the
   // one being worked in.
   useEffect(() => {
-    setSlots((current) => {
-      if (current.length === maxPanels) return current;
-      const open = current
-        .filter((slot): slot is ToolId => slot !== null)
-        .slice(0, maxPanels);
-      const empty = maxPanels - open.length;
-      const leading = Math.floor(empty / 2);
-      return [
-        ...Array<ToolId | null>(leading).fill(null),
-        ...open,
-        ...Array<ToolId | null>(empty - leading).fill(null),
-      ];
-    });
+    setSlots((current) =>
+      current.length === maxPanels
+        ? current
+        : spreadSlots(
+            current.filter((slot): slot is ToolId => slot !== null),
+            maxPanels,
+          ),
+    );
   }, [maxPanels]);
 
   /**
@@ -393,12 +444,20 @@ export function AppShell() {
       storage.get<SavedColor[]>(SAVED_COLORS_KEY),
       storage.get<SavedPalette[]>(RECENT_PALETTES_KEY),
       storage.get<SavedColor[]>(RECENT_COLORS_KEY),
-    ]).then(([palettes, colors, recentP, recentC]) => {
+      storage.get<unknown>(LAYOUT_KEY),
+    ]).then(([palettes, colors, recentP, recentC, layout]) => {
       if (cancelled) return;
       setSavedPalettes(palettes ?? []);
       setSavedColors(colors ?? []);
       setRecentPalettes(recentP ?? []);
       setRecentColors(recentC ?? []);
+      // The most recent entry is the palette that was on screen when you left — recent history
+      // already records the working palette once it settles, so there's nothing extra to store.
+      // Handed to the generator the same way a saved palette is, since by this point that's all
+      // the difference between them.
+      if (recentP?.[0]) setPaletteToLoad(recentP[0]);
+      if (layout) setPendingLayout(layout);
+      else setIsLayoutRestored(true);
       setIsStorageLoaded(true);
     });
     return () => {
@@ -638,6 +697,35 @@ export function AppShell() {
     ],
     [savedCount, inspector],
   );
+
+  // Which ids a restored layout is allowed to name. Derived from the tool list rather than the
+  // ToolId union, because the union is what could exist and this is what does: the page tools
+  // are absent in a web build.
+  const availableTools = useMemo(
+    () => new Set(tools.map((tool) => tool.id)),
+    [tools],
+  );
+
+  /**
+   * Applies a stored layout, once the shell has been measured.
+   *
+   * Declared down here rather than beside the read it completes, because it needs the tool list
+   * to vet what it found and hooks can't reference a binding declared below them.
+   */
+  useEffect(() => {
+    if (pendingLayout === null || shellWidth === 0) return;
+    const restored = restoreSlots(pendingLayout, maxPanels, availableTools);
+    if (restored) setSlots(restored);
+    setPendingLayout(null);
+    setIsLayoutRestored(true);
+  }, [pendingLayout, shellWidth, maxPanels, availableTools]);
+
+  // Saved on every change rather than on unload: a side panel is closed by closing the window
+  // around it, and an unload handler is the one thing that isn't reliably run when that happens.
+  useEffect(() => {
+    if (!isLayoutRestored) return;
+    storage.set(LAYOUT_KEY, slots);
+  }, [isLayoutRestored, slots, storage]);
 
   /**
    * Places a tool in a panel.
