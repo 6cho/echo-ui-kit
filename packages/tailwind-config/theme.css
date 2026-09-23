@@ -35,16 +35,19 @@
   --clay-light: 255 255 255;
   --clay-dark: 16 14 24;
 
-  /* Radii, roughly doubled. This is most of the effect and it costs one line per step, because
-     rounded-* compiles to var(--radius-*) — every corner in the app moves together. Clay has no
-     tight corners; a 6px radius on a puffy surface reads as a mistake rather than a style. */
-  --radius-xs: 0.375rem;
-  --radius-sm: 0.5rem;
-  --radius-md: 0.75rem;
-  --radius-lg: 1.125rem;
-  --radius-xl: 1.75rem;
-  --radius-2xl: 2.25rem;
-  --radius-3xl: 2.75rem;
+  /* Radii. Claymorphism wants corners softer than stock Tailwind, but roughly doubling the
+     scale — which is where this started — turns a panel into a lozenge and everything on it into
+     a toy. These sit about half way: clearly rounder than default, still describing a rectangle.
+     One line per step re-corners the whole app at once, since rounded-* compiles to
+     var(--radius-*). Anything small enough that half its width is a radius sets its own; see
+     SHAPE_RADIUS in the easing examples and the colour grid's own container. */
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+  --radius-3xl: 1.5rem;
 
   /* Shadows: large, soft, and further from the surface than a material drop shadow, which is
      what makes an object look light and inflated rather than heavy and flat. Outer layers only.
