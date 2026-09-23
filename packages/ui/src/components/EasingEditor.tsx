@@ -12,6 +12,7 @@ import {
   resampleLinear,
 } from "@echo-ui-kit/tools-core";
 import {
+  type CSSProperties,
   type ReactNode,
   useCallback,
   useEffect,
@@ -204,7 +205,9 @@ const TILE_PAD = 10;
 // where doubling them for claymorphism is the whole point; at 24px across, the same radius is
 // half the shape and turns every example into a circle.
 const SHAPE_RADIUS = 6;
-// The mark that tells one side of the rotating square from the other three.
+// The mark each example carries. On the rotating square it is load-bearing — without it a square
+// is the same picture every quarter turn — and everywhere else it is the same mark so the set
+// reads as one family rather than as five shapes and a special case.
 const SHAPE_DOT = 6;
 const SHAPE_DOT_INSET = 3;
 
@@ -218,6 +221,30 @@ function Tile({ label, children }: { label: string; children: ReactNode }) {
         {label}
       </span>
     </div>
+  );
+}
+
+/** Centred in whatever it is placed in; override `style` to pin it to an edge instead. */
+function Dot({
+  style,
+  className = "bg-white/90",
+}: {
+  style?: CSSProperties;
+  className?: string;
+}) {
+  return (
+    <span
+      className={`absolute rounded-full ${className}`}
+      style={{
+        height: SHAPE_DOT,
+        width: SHAPE_DOT,
+        top: "50%",
+        left: "50%",
+        marginTop: -SHAPE_DOT / 2,
+        marginLeft: -SHAPE_DOT / 2,
+        ...style,
+      }}
+    />
   );
 }
 
@@ -249,16 +276,23 @@ function Examples({ eased }: { eased: number }) {
     <div className="grid grid-cols-3 gap-2">
       <Tile label="Fade">
         <Centred>
-          <div className={shape} style={{ ...size, opacity: eased }} />
+          <div
+            className={`relative ${shape}`}
+            style={{ ...size, opacity: eased }}
+          >
+            <Dot />
+          </div>
         </Centred>
       </Tile>
 
       <Tile label="Scale">
         <Centred>
           <div
-            className={shape}
+            className={`relative ${shape}`}
             style={{ ...size, transform: `scale(${0.3 + eased * 0.7})` }}
-          />
+          >
+            <Dot />
+          </div>
         </Centred>
       </Tile>
 
@@ -287,7 +321,9 @@ function Examples({ eased }: { eased: number }) {
             // off the side of the tile where nobody can see it happen.
             left: `calc(${TILE_PAD}px + ${trackFraction(eased)} * (100% - ${TILE_PAD * 2 + SHAPE}px))`,
           }}
-        />
+        >
+          <Dot />
+        </div>
       </Tile>
 
       <Tile label="Rotate">
@@ -299,15 +335,9 @@ function Examples({ eased }: { eased: number }) {
             className={`relative ${shape}`}
             style={{ ...size, transform: `rotate(${eased * 180}deg)` }}
           >
-            <span
-              className="absolute rounded-full bg-white/90"
-              style={{
-                height: SHAPE_DOT,
-                width: SHAPE_DOT,
-                top: SHAPE_DOT_INSET,
-                left: (SHAPE - SHAPE_DOT) / 2,
-              }}
-            />
+            {/* Off-centre on this one, which is the point: a mark in the middle of a square
+                turns with it and tells you nothing. */}
+            <Dot style={{ top: SHAPE_DOT_INSET, marginTop: 0 }} />
           </div>
         </Centred>
       </Tile>
@@ -343,19 +373,44 @@ function Examples({ eased }: { eased: number }) {
               style={{ width: `${width * 100}%` }}
             />
           ))}
+          {/* On the edge that leads the way in, so there is something to watch overshoot past
+              the resting place and come back. Accent rather than white: this is the one moving
+              thing here that is itself a pale surface, and a white mark on it would be
+              invisible — the mark matching what the panel holds is the consistency that
+              actually reads. */}
+          <Dot
+            className="bg-brand-600"
+            style={{
+              left: "auto",
+              right: SHAPE_DOT,
+              marginLeft: 0,
+            }}
+          />
         </div>
       </Tile>
 
       <Tile label="Stretch">
         <Centred>
           <div
-            className="h-2 rounded-full bg-brand-600"
+            className={`relative overflow-hidden ${shape}`}
             style={{
-              // Full is deliberately short of the tile, leaving somewhere for an overshoot to go.
-              // A width can't be negative either, so an undershooting curve holds at nothing.
-              width: `${Math.max(0, eased) * 70}%`,
+              // Starts as the same square as every other example and stretches from there, so
+              // the tile shows a shape changing rather than one appearing out of nothing. Full
+              // is deliberately short of the tile, leaving somewhere for an overshoot to go, and
+              // an undershooting curve holds at the square rather than collapsing past it.
+              width: `calc(${SHAPE}px + ${Math.max(0, eased)} * (70% - ${SHAPE}px))`,
+              height: SHAPE,
+              borderRadius: SHAPE_RADIUS,
             }}
-          />
+          >
+            {/* One at each end, so the stretch is read from both edges moving apart rather than
+                from a bar whose length you have to estimate. Inset by less than their own width,
+                so they still sit clear of each other back at the square. */}
+            <Dot style={{ left: SHAPE_DOT_INSET, marginLeft: 0 }} />
+            <Dot
+              style={{ left: "auto", right: SHAPE_DOT_INSET, marginLeft: 0 }}
+            />
+          </div>
         </Centred>
       </Tile>
     </div>
