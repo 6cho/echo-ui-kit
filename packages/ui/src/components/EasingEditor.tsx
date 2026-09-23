@@ -227,7 +227,7 @@ function Tile({ label, children }: { label: string; children: ReactNode }) {
 /** Centred in whatever it is placed in; override `style` to pin it to an edge instead. */
 function Dot({
   style,
-  className = "bg-white/90",
+  className = "bg-brand-100",
 }: {
   style?: CSSProperties;
   className?: string;
@@ -379,7 +379,7 @@ function Examples({ eased }: { eased: number }) {
               white on white is nothing at all. The ring costs no layout and disappears against
               the dark surface, where the white already reads on its own. */}
           <Dot
-            className="bg-white shadow-[0_0_0_1px_rgb(0_0_0_/_0.15)]"
+            className="bg-brand-100 shadow-[0_0_0_1px_rgb(0_0_0_/_0.15)]"
             style={{
               left: "auto",
               right: SHAPE_DOT,

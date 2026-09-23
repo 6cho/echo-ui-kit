@@ -55,6 +55,13 @@ const PRIMARY_MIN_CONTRAST = 4.5;
 // palette it is often the darkest step. Inheriting its lightness made the app's primary colour
 // follow the palette's *darkness* around, which at the low end produced a black button.
 const PRIMARY_LIGHTNESS = 0.55;
+// The mark that goes *on* the accent — brand-100. Non-text, so 3:1 is the bar; aiming a little
+// past it leaves room for the rounding into sRGB. Same hue as the accent rather than a rotated
+// one: a companion hue has to jump from light to dark to stay readable as the base sweeps through
+// the bright greens and cyans, and watching every mark invert halfway along a hue drag is worse
+// than not having a second hue at all.
+const ON_PRIMARY_MIN_CONTRAST = 3.5;
+const ON_PRIMARY_START_LIGHTNESS = 0.93;
 
 export interface AppTheme {
   /** Custom properties to set on the document root. */
@@ -123,12 +130,9 @@ export function deriveAppTheme(source: string): AppTheme | null {
       c: chroma * 0.25,
       h: hue,
     }),
-    "--color-brand-100": toHex({
-      mode: "oklch",
-      l: 0.93,
-      c: chroma * 0.4,
-      h: hue,
-    }),
+    // Less a step on a ramp than a role: whatever reads as a mark on top of the accent. It had
+    // no job at all until the examples needed something to put on their shapes.
+    "--color-brand-100": lightenUntilVisible(primary, chroma, hue),
     "--color-brand-500": toHex({ mode: "oklch", l: 0.66, c: chroma, h: hue }),
     "--color-brand-600": primary,
     "--color-brand-900": toHex({
@@ -167,6 +171,31 @@ export function deriveAppTheme(source: string): AppTheme | null {
   }
 
   return { variables, primary };
+}
+
+/**
+ * Walks a tint of the accent up in lightness until it is visible against the accent itself.
+ *
+ * Only ever lighter, never a different hue, so there is no point at which it has to jump to the
+ * other side to stay readable. Same hue also means contrast rises monotonically with lightness,
+ * so the first value that clears the bar is the closest one to the accent — the mark stays a tint
+ * of the theme rather than drifting off toward white.
+ */
+function lightenUntilVisible(
+  primary: string,
+  chroma: number,
+  hue: number,
+): string {
+  const tint = Math.min(0.09, chroma * 0.35);
+  for (
+    let lightness = ON_PRIMARY_START_LIGHTNESS;
+    lightness <= 0.99;
+    lightness += 0.01
+  ) {
+    const hex = toHex({ mode: "oklch", l: lightness, c: tint, h: hue });
+    if (contrastRatio(hex, primary) >= ON_PRIMARY_MIN_CONTRAST) return hex;
+  }
+  return toHex({ mode: "oklch", l: 0.99, c: tint, h: hue });
 }
 
 /**
