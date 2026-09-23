@@ -14,7 +14,7 @@ import {
   toHsl,
   toOklch,
 } from "@echo-ui-kit/tools-core";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { extractPaletteFromImageFile } from "../lib/imagePalette";
 import type { SavedPalette, WorkingPalette } from "../types/palette";
 import { ColorScaleGrid } from "./ColorScaleGrid";
@@ -184,6 +184,58 @@ function principledSeedColors(columnScales: ColumnScale[]): string[] {
  * that wasn't in any scale sorted ahead of the base. Unplaceable colours now sort last, which is
  * the only honest answer.
  */
+/** Where a colour sits in a set of scales, if it is one of their steps. */
+function locate(
+  hex: string,
+  scales: ColumnScale[],
+): { column: number; step: number } | null {
+  const needle = hex.toLowerCase();
+  for (const [column, scale] of scales.entries()) {
+    const found = scale.find((entry) => entry.hex.toLowerCase() === needle);
+    if (found) return { column, step: found.step };
+  }
+  return null;
+}
+
+/** The colour at a position in a set of scales. */
+function hexAt(
+  at: { column: number; step: number },
+  scales: ColumnScale[],
+): string | null {
+  return (
+    scales[at.column]?.find((entry) => entry.step === at.step)?.hex ?? null
+  );
+}
+
+/**
+ * Follows a selection from one set of scales to the next.
+ *
+ * The selection is stored as colours, but what someone picked was a *position* — the 700 of the
+ * second column, say. Move the base colour and every stored hex names a colour that no longer
+ * exists: the grid stops ticking anything, the preview shows colours that are not in the palette,
+ * and saving keeps them. Anything that can't be placed is left alone rather than dropped, since
+ * an image palette and a restored one both contain colours these scales never generated.
+ */
+function followScales(
+  hexes: string[],
+  from: ColumnScale[],
+  to: ColumnScale[],
+): string[] {
+  let changed = false;
+  const next = hexes.map((hex) => {
+    const at = locate(hex, from);
+    const moved = at ? hexAt(at, to) : null;
+    if (moved && moved !== hex) {
+      changed = true;
+      return moved;
+    }
+    return hex;
+  });
+  // Same array back when nothing moved, so this can run on every scale change without forcing a
+  // render of everything downstream of the selection.
+  return changed ? next : hexes;
+}
+
 function paletteOrder(columnScales: ColumnScale[]): Map<string, number> {
   const order = new Map<string, number>();
   columnScales.forEach((scale, column) => {
@@ -556,6 +608,31 @@ export function PaletteGenerator({
   // specific steps out of this rather than requesting a partial scale directly (see
   // fullColumnScale's comment for why that matters).
   const columnScales = useMemo(() => columns.map(fullColumnScale), [columns]);
+
+  // Keeps the selection pointing at the same positions when the scales underneath it are rebuilt,
+  // which happens on every tick of the hue, saturation and lightness sliders.
+  // A ref rather than state: this is how the effect remembers what it last ran against, and
+  // depending on it would make the effect depend on something it writes.
+  const previousScales = useRef(columnScales);
+  useEffect(() => {
+    const from = previousScales.current;
+    previousScales.current = columnScales;
+    if (from === columnScales) return;
+    setSelectedByHarmony((current) => {
+      let changed = false;
+      const next: Partial<Record<HarmonyType, string[]>> = {};
+      for (const [key, hexes] of Object.entries(current)) {
+        if (!hexes) continue;
+        const moved = followScales(hexes, from, columnScales);
+        if (moved !== hexes) changed = true;
+        next[key as HarmonyType] = moved;
+      }
+      return changed ? next : current;
+    });
+    setImageSelectedColors((current) =>
+      current ? followScales(current, from, columnScales) : current,
+    );
+  }, [columnScales]);
 
   // Memoized specifically so its identity is stable between renders. principledSeedColors builds
   // a brand new array every call, so computing this inline would hand the effect below a
