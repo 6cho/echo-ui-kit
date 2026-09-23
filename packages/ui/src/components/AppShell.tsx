@@ -18,7 +18,6 @@ import type {
   SavedPalette,
   WorkingPalette,
 } from "../types/palette";
-import { AppThemeToggle } from "./AppThemeToggle";
 import { BoxEditor } from "./BoxEditor";
 import { ContrastView } from "./ContrastView";
 import { DriftView } from "./DriftView";
@@ -29,6 +28,7 @@ import { GradientGenerator } from "./GradientGenerator";
 import { PageToolsView } from "./PageToolsView";
 import { PaletteGenerator } from "./PaletteGenerator";
 import { SavedPalettesView } from "./SavedPalettesView";
+import { ThemeMenu } from "./ThemeMenu";
 import { ThemeTester } from "./ThemeTester";
 import { TWO_COLUMN_MIN_WIDTH } from "./ToolColumns";
 import { type ToolOption, ToolSwitcher } from "./ToolSwitcher";
@@ -228,7 +228,7 @@ export function AppShell() {
   const [shellWidth, setShellWidth] = useState(0);
   const shellRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
-  const { theme, toggle: toggleTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
 
   /**
    * The slot currently opening, and whether its column has finished growing.
@@ -251,8 +251,10 @@ export function AppShell() {
   // Guards the write-back below from saving the default layout over the stored one in the gap
   // between the read landing and the restore being applied.
   const [isLayoutRestored, setIsLayoutRestored] = useState(false);
-  // Whether the palette being built is also painting the interface around it.
-  const [isAppThemed, setIsAppThemed] = useState(false);
+  // Whether the palette being built is also painting the interface around it. On by default: a
+  // tool for making palettes that doesn't use the one you just made is a worse demonstration of
+  // it than any amount of preview, and it is one switch away in the theme menu.
+  const [isAppThemed, setIsAppThemed] = useState(true);
   // Which slot is on its way out. It still holds its tool for the length of the fade — emptying
   // it first would take the panel away before there was anything to watch.
   const [exitingSlot, setExitingSlot] = useState<number | null>(null);
@@ -467,7 +469,9 @@ export function AppShell() {
       if (recentP?.[0]) setPaletteToLoad(recentP[0]);
       if (layout) setPendingLayout(layout);
       else setIsLayoutRestored(true);
-      if (appThemed) setIsAppThemed(true);
+      // Checked for a stored boolean rather than truthiness, now that the default is on: a
+      // stored `false` is a decision to turn it off and has to survive a reload.
+      if (typeof appThemed === "boolean") setIsAppThemed(appThemed);
       setIsStorageLoaded(true);
     });
     return () => {
@@ -963,49 +967,13 @@ export function AppShell() {
             Front-end dev toolkit
           </span>
         </div>
-        <AppThemeToggle
-          colors={workingColors}
-          enabled={isAppThemed}
-          onToggle={() => setIsAppThemed((current) => !current)}
+        <ThemeMenu
+          theme={theme}
+          onThemeChange={setTheme}
+          paletteColors={workingColors}
+          isPaletteApplied={isAppThemed}
+          onPaletteAppliedChange={setIsAppThemed}
         />
-        <button
-          type="button"
-          onClick={toggleTheme}
-          title={theme === "dark" ? "Switch to light" : "Switch to dark"}
-          aria-label={theme === "dark" ? "Switch to light" : "Switch to dark"}
-          className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-black/10 text-zinc-600 transition hover:bg-zinc-100 active:scale-95 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-surface-elevated"
-        >
-          {theme === "dark" ? (
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-4 w-4"
-              aria-hidden="true"
-            >
-              <title>Sun</title>
-              <circle cx="12" cy="12" r="4" />
-              <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-            </svg>
-          ) : (
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-4 w-4"
-              aria-hidden="true"
-            >
-              <title>Moon</title>
-              <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />
-            </svg>
-          )}
-        </button>
       </header>
 
       <PanelColumnsProvider value={panelColumns}>

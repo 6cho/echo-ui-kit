@@ -1,5 +1,4 @@
 export { AppShell } from "./components/AppShell";
-export { AppThemeToggle } from "./components/AppThemeToggle";
 export { BoxEditor } from "./components/BoxEditor";
 export { Checkbox } from "./components/Checkbox";
 export { CollapsibleSection } from "./components/CollapsibleSection";
@@ -28,6 +27,7 @@ export { SavedPalettesView } from "./components/SavedPalettesView";
 export { ShadowLayerControls } from "./components/ShadowLayerControls";
 export { Slider } from "./components/Slider";
 export { SurfaceControls } from "./components/SurfaceControls";
+export { ThemeMenu } from "./components/ThemeMenu";
 export { ThemeTester } from "./components/ThemeTester";
 export { type MenuItem, ThreeDotMenu } from "./components/ThreeDotMenu";
 export { ToolColumns, ToolWidth } from "./components/ToolColumns";
