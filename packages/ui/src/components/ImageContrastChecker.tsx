@@ -286,7 +286,7 @@ export function ImageContrastChecker({
         <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
           Text size
         </span>
-        <div className="flex gap-1 rounded-lg bg-zinc-100 p-1 dark:bg-surface-elevated">
+        <div className="flex gap-1 clay-inset rounded-lg bg-zinc-100 p-1 dark:bg-surface-elevated">
           {SIZE_PRESETS.map((preset) => (
             <button
               key={preset.id}
@@ -294,7 +294,7 @@ export function ImageContrastChecker({
               onClick={() => setSizeId(preset.id)}
               className={`flex-1 cursor-pointer rounded-md px-2 py-1 text-xs font-medium transition active:scale-95 ${
                 sizeId === preset.id
-                  ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white"
+                  ? "clay bg-white text-zinc-900 dark:bg-zinc-700 dark:text-white"
                   : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
               }`}
             >

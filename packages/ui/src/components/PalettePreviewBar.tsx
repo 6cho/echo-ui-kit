@@ -48,7 +48,7 @@ export function PalettePreviewBar({
         onClick={onAction}
         disabled={colors.length === 0}
         title={title}
-        className="shrink-0 cursor-pointer rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100"
+        className="shrink-0 cursor-pointer clay rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white transition hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100"
       >
         {actionLabel}
       </button>

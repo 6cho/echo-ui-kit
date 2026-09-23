@@ -24,6 +24,77 @@
   --color-surface: #202124;
   --color-surface-elevated: #2d2e31;
   --color-surface-hover: #37383c;
+
+  /* Claymorphism, and the two tokens the whole look is built from: light landing on a soft
+     object from above, and the object's own thickness shading its lower edge. Everything below
+     is some amount of these two. */
+  --clay-light: 255 255 255;
+  --clay-dark: 16 14 24;
+
+  /* Radii, roughly doubled. This is most of the effect and it costs one line per step, because
+     rounded-* compiles to var(--radius-*) — every corner in the app moves together. Clay has no
+     tight corners; a 6px radius on a puffy surface reads as a mistake rather than a style. */
+  --radius-xs: 0.375rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1.125rem;
+  --radius-xl: 1.75rem;
+  --radius-2xl: 2.25rem;
+  --radius-3xl: 2.75rem;
+
+  /* Shadows: large, soft, and further from the surface than a material drop shadow, which is
+     what makes an object look light and inflated rather than heavy and flat. Outer layers only.
+     Tailwind rewrites the colour of every layer in a shadow token when a shadow-<color> utility
+     is used, so an inset highlight put in here would be painted black the moment anything asked
+     for a darker shadow. The highlights live in the `clay` utility below instead, out of reach
+     of that substitution. */
+  --shadow-2xs: 0 1px 2px 0 rgb(var(--clay-dark) / 0.06);
+  --shadow-xs: 0 2px 5px -1px rgb(var(--clay-dark) / 0.07);
+  --shadow-sm: 0 3px 8px -2px rgb(var(--clay-dark) / 0.09);
+  --shadow-md: 0 8px 18px -6px rgb(var(--clay-dark) / 0.14);
+  --shadow-lg: 0 14px 30px -10px rgb(var(--clay-dark) / 0.18);
+  --shadow-xl: 0 22px 44px -14px rgb(var(--clay-dark) / 0.22);
+  --shadow-2xl: 0 32px 64px -18px rgb(var(--clay-dark) / 0.28);
+}
+
+/*
+ * The puffy part, as an opt-in utility rather than a blanket rule.
+ *
+ * Inner highlights are what separate clay from "soft shadows", but they can only go on surfaces
+ * whose own colour is decoration. Every swatch, scale cell and gradient stop in this app is a
+ * colour being judged, and a white bloom across the top of one is a lie about what that colour
+ * is — in a tool for choosing colours, that is the one thing the styling must not do.
+ */
+@utility clay {
+  box-shadow:
+    0 14px 28px -12px rgb(var(--clay-dark) / 0.22),
+    inset 0 2px 1px -1px rgb(var(--clay-light) / 0.9),
+    inset 0 -10px 18px -12px rgb(var(--clay-dark) / 0.35);
+}
+
+/* Pressed in rather than pushed out: the same two lights, swapped. For the grooves that hold
+   something — a segmented control's track, where the selected pill is the thing standing proud. */
+@utility clay-inset {
+  box-shadow:
+    inset 0 2px 5px -1px rgb(var(--clay-dark) / 0.16),
+    inset 0 -1px 0 0 rgb(var(--clay-light) / 0.75);
+}
+
+/* Dark mode gets a fraction of the highlight. The same bloom that reads as light on a pale
+   surface reads as fog on a dark one, and the shade underneath has nothing left to darken.
+   Keyed off the class alone, like everything else here — this app has no data-theme attribute,
+   and a :not() against one would have matched in light mode too. */
+:root.dark .clay {
+  box-shadow:
+    0 16px 32px -12px rgb(var(--clay-dark) / 0.55),
+    inset 0 1px 0 0 rgb(var(--clay-light) / 0.07),
+    inset 0 -12px 20px -14px rgb(var(--clay-dark) / 0.5);
+}
+
+:root.dark .clay-inset {
+  box-shadow:
+    inset 0 2px 6px -1px rgb(var(--clay-dark) / 0.5),
+    inset 0 -1px 0 0 rgb(var(--clay-light) / 0.05);
 }
 
 /* Dark mode keys off a class rather than Tailwind's default prefers-color-scheme, so the in-app

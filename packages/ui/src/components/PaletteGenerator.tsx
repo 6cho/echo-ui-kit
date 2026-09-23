@@ -721,7 +721,7 @@ export function PaletteGenerator({
                 segmented-control language shows up wherever the app offers a choice between two
                 views. shrink-0 + whitespace-nowrap so it always keeps its natural one-line
                 width instead of being compressed by the label sharing this row. */}
-            <div className="flex shrink-0 gap-1 rounded-md bg-zinc-100 p-0.5 dark:bg-surface-elevated">
+            <div className="flex shrink-0 gap-1 clay-inset rounded-md bg-zinc-100 p-0.5 dark:bg-surface-elevated">
               {(["harmony", "image"] as const).map((source) => (
                 <button
                   key={source}
@@ -729,7 +729,7 @@ export function PaletteGenerator({
                   onClick={() => setPaletteSource(source)}
                   className={`cursor-pointer whitespace-nowrap rounded px-2 py-0.5 text-[11px] font-medium transition active:scale-95 ${
                     paletteSource === source
-                      ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white"
+                      ? "clay bg-white text-zinc-900 dark:bg-zinc-700 dark:text-white"
                       : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
                   }`}
                 >

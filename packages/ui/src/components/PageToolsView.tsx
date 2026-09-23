@@ -257,7 +257,7 @@ export function PageToolsView({
                 )
               }
               disabled={busy === "colors"}
-              className="cursor-pointer self-start rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+              className="cursor-pointer self-start clay rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white transition hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {busy === "colors" ? "Scanning…" : "Rescan colors"}
             </button>
@@ -313,7 +313,7 @@ export function PageToolsView({
                 run("fonts", () => inspector.extractFonts(), setFonts)
               }
               disabled={busy === "fonts"}
-              className="cursor-pointer self-start rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+              className="cursor-pointer self-start clay rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white transition hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {busy === "fonts" ? "Scanning…" : "Rescan fonts"}
             </button>

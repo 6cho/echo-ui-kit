@@ -954,7 +954,7 @@ export function AppShell() {
       className="flex h-screen flex-col bg-white text-zinc-900 dark:bg-surface dark:text-zinc-50"
     >
       <header className="flex shrink-0 items-center gap-2.5 border-black/10 border-b px-4 py-3 dark:border-white/10">
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand-600 text-xs font-bold text-white">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center clay rounded-md bg-brand-600 text-xs font-bold text-white">
           E
         </span>
         <div className="flex min-w-0 flex-1 flex-col leading-none">
@@ -1050,7 +1050,7 @@ export function AppShell() {
                     gridRow: "1 / -1",
                     ...dragStyle(index),
                   }}
-                  className={`pointer-events-none rounded-xl border border-black/10 bg-white shadow-black/[0.06] shadow-md dark:border-white/10 dark:bg-surface dark:shadow-black/40 dark:shadow-xl ${
+                  className={`pointer-events-none rounded-xl border border-black/10 clay bg-white dark:border-white/10 dark:bg-surface ${
                     entering?.index === index && !entering.revealed
                       ? "animate-panel-card-in"
                       : ""

@@ -67,7 +67,7 @@ function SurfaceSection({
         ) : undefined
       }
     >
-      <div className="flex gap-1 rounded-md bg-zinc-100 p-0.5 dark:bg-surface-elevated">
+      <div className="flex gap-1 clay-inset rounded-md bg-zinc-100 p-0.5 dark:bg-surface-elevated">
         {(["solid", "gradient"] as const).map((kind) => (
           <button
             key={kind}
@@ -92,7 +92,7 @@ function SurfaceSection({
             }
             className={`flex-1 cursor-pointer rounded px-2 py-0.5 text-[11px] font-medium capitalize transition active:scale-95 ${
               fill.kind === kind
-                ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white"
+                ? "clay bg-white text-zinc-900 dark:bg-zinc-700 dark:text-white"
                 : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
             }`}
           >
@@ -168,7 +168,7 @@ export function SurfaceControls({
 
   return (
     <>
-      <div className="flex gap-1 self-start rounded-md bg-zinc-100 p-0.5 dark:bg-surface-elevated">
+      <div className="flex gap-1 self-start clay-inset rounded-md bg-zinc-100 p-0.5 dark:bg-surface-elevated">
         {(["light", "dark"] as const).map((key) => (
           <button
             key={key}
@@ -179,7 +179,7 @@ export function SurfaceControls({
             }}
             className={`cursor-pointer rounded px-2 py-0.5 text-[11px] font-medium capitalize transition active:scale-95 ${
               activePreset === key
-                ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white"
+                ? "clay bg-white text-zinc-900 dark:bg-zinc-700 dark:text-white"
                 : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
             }`}
           >

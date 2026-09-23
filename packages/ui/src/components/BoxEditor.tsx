@@ -429,7 +429,7 @@ export function BoxEditor({ paletteColors }: { paletteColors: string[] }) {
         onToggle={(next) => toggleSection("radius", next)}
       >
         <div className="flex items-center justify-between gap-2">
-          <div className="flex gap-1 rounded-md bg-zinc-100 p-0.5 dark:bg-surface-elevated">
+          <div className="flex gap-1 clay-inset rounded-md bg-zinc-100 p-0.5 dark:bg-surface-elevated">
             {(["px", "%"] as const).map((id) => (
               <button
                 key={id}
@@ -437,7 +437,7 @@ export function BoxEditor({ paletteColors }: { paletteColors: string[] }) {
                 onClick={() => changeRadiusUnit(id)}
                 className={`cursor-pointer rounded px-2.5 py-0.5 text-[11px] font-medium transition active:scale-95 ${
                   radiusUnit === id
-                    ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white"
+                    ? "clay bg-white text-zinc-900 dark:bg-zinc-700 dark:text-white"
                     : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
                 }`}
               >

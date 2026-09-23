@@ -37,7 +37,7 @@ export function CssOutput({
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between gap-2">
         {tabs ? (
-          <div className="flex gap-1 rounded-md bg-zinc-100 p-0.5 dark:bg-surface-elevated">
+          <div className="flex gap-1 clay-inset rounded-md bg-zinc-100 p-0.5 dark:bg-surface-elevated">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
@@ -45,7 +45,7 @@ export function CssOutput({
                 onClick={() => onTabChange?.(tab.id)}
                 className={`cursor-pointer rounded px-2 py-0.5 text-[11px] font-medium transition active:scale-95 ${
                   activeTab === tab.id
-                    ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white"
+                    ? "clay bg-white text-zinc-900 dark:bg-zinc-700 dark:text-white"
                     : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
                 }`}
               >
@@ -62,7 +62,7 @@ export function CssOutput({
           type="button"
           onClick={copyToClipboard}
           title="Copy to clipboard"
-          className="shrink-0 cursor-pointer rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:opacity-90 active:scale-95"
+          className="shrink-0 cursor-pointer clay rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white transition hover:opacity-90 active:scale-95"
         >
           {copied ? "Copied" : "Copy"}
         </button>

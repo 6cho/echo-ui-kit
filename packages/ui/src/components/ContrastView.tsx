@@ -19,7 +19,7 @@ export function ContrastView({ colors }: { colors: string[] }) {
   return (
     <div className="flex flex-col">
       <ToolWidth className="px-4 pt-4">
-        <div className="flex gap-1 rounded-lg bg-zinc-100 p-1 dark:bg-surface-elevated">
+        <div className="flex gap-1 clay-inset rounded-lg bg-zinc-100 p-1 dark:bg-surface-elevated">
           {(
             [
               { id: "palette", label: "Palette pairs" },
@@ -32,7 +32,7 @@ export function ContrastView({ colors }: { colors: string[] }) {
               onClick={() => setMode(id)}
               className={`flex-1 cursor-pointer rounded-md px-2.5 py-1 text-xs font-medium transition active:scale-95 ${
                 mode === id
-                  ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white"
+                  ? "clay bg-white text-zinc-900 dark:bg-zinc-700 dark:text-white"
                   : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
               }`}
             >
