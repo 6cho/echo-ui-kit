@@ -179,6 +179,16 @@ const WARMUP_DECAY = 0.4;
 // Below this the next step isn't visible, so it stops rather than converging forever.
 const WARMUP_SETTLE_MS = 25;
 
+// How long a preset takes to arrive. Long enough to watch the curve bend into its new shape,
+// which is the only way to see what a preset changed — a curve replaced between two frames is
+// just a different picture, and you are left comparing it against your memory of the last one.
+const PRESET_TWEEN_MS = 320;
+
+/** Smooth at both ends, so the curve doesn't start or stop abruptly on its way to a preset. */
+function easeInOut(t: number): number {
+  return t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
+}
+
 function toSvgX(x: number): number {
   return PAD + x * SIZE;
 }
@@ -376,6 +386,48 @@ export function EasingEditor() {
   const durationRef = useRef(duration);
   // What the loop is actually running at, which is only the duration once it has warmed up.
   const playbackRef = useRef(WARMUP_DURATION);
+  // A preset on its way in, so it can be called off the moment a handle is grabbed.
+  const tweenRef = useRef<number | null>(null);
+
+  const cancelTween = useCallback(() => {
+    if (tweenRef.current !== null) {
+      cancelAnimationFrame(tweenRef.current);
+      tweenRef.current = null;
+    }
+  }, []);
+  useEffect(() => cancelTween, [cancelTween]);
+
+  /**
+   * Bends the curve into a preset rather than replacing it.
+   *
+   * All four values travel at once, which is what keeps it reading as one curve moving instead of
+   * four numbers changing: the shape is continuous the whole way, so what a preset actually did
+   * to the curve is visible in the movement rather than inferred by comparing two stills.
+   */
+  function applyPreset(target: CubicBezier) {
+    cancelTween();
+    const from = bezier;
+    const startedAt = performance.now();
+    const step = (now: number) => {
+      const t = Math.min(1, (now - startedAt) / PRESET_TWEEN_MS);
+      const eased = easeInOut(t);
+      setBezier({
+        x1: from.x1 + (target.x1 - from.x1) * eased,
+        y1: from.y1 + (target.y1 - from.y1) * eased,
+        x2: from.x2 + (target.x2 - from.x2) * eased,
+        y2: from.y2 + (target.y2 - from.y2) * eased,
+      });
+      if (t < 1) {
+        tweenRef.current = requestAnimationFrame(step);
+        return;
+      }
+      // Landed exactly, so the preset compares equal and shows as selected — interpolation
+      // leaves floating-point dust that a strict comparison would never match.
+      setBezier(target);
+      tweenRef.current = null;
+    };
+    tweenRef.current = requestAnimationFrame(step);
+  }
 
   useEffect(() => {
     durationRef.current = duration;
@@ -517,7 +569,8 @@ export function EasingEditor() {
       <svg
         ref={svgRef}
         viewBox={`0 0 ${VIEW} ${VIEW}`}
-        className="w-full touch-none select-none rounded-lg border border-black/10 bg-zinc-100 dark:border-white/10 dark:bg-surface-elevated"
+        // Recessed, like every other surface here that something sits inside rather than on.
+        className="clay-inset w-full touch-none select-none rounded-lg bg-zinc-100 dark:bg-surface-elevated"
         onPointerMove={(e) => {
           const dragged = draggingRef.current;
           if (dragged === null) return;
@@ -619,6 +672,8 @@ export function EasingEditor() {
             className="cursor-ns-resize fill-white stroke-brand-500 dark:fill-zinc-800"
             strokeWidth={HANDLE_STROKE}
             onPointerDown={(e) => {
+              // Taking hold of the curve calls off whatever a preset was still doing to it.
+              cancelTween();
               draggingRef.current = index;
               svgRef.current?.setPointerCapture(e.pointerId);
             }}
@@ -650,6 +705,8 @@ export function EasingEditor() {
             either escapes the box, which reads as a rendering fault, or gets clipped, which is a
             lie about what the easing does. */}
         <div
+          // Dashed and unfilled on purpose: it marks where the overshoot may go rather than being
+          // a surface in its own right, so it stays out of the clay.
           className="relative rounded-xl border border-black/10 border-dashed dark:border-white/10"
           style={{ height: TRACK_HEIGHT }}
         >
@@ -733,11 +790,11 @@ export function EasingEditor() {
               <button
                 key={preset.id}
                 type="button"
-                onClick={() => setBezier(preset.value)}
-                className={`cursor-pointer rounded-md border px-2.5 py-1 text-[11px] font-medium transition active:scale-95 ${
+                onClick={() => applyPreset(preset.value)}
+                className={`clay cursor-pointer rounded-md border bg-white px-2.5 py-1 font-medium text-[11px] transition active:scale-95 dark:bg-surface-elevated ${
                   activePreset?.id === preset.id
                     ? "border-brand-500 text-brand-600 dark:text-brand-500"
-                    : "border-black/10 text-zinc-600 hover:bg-zinc-100 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-surface-elevated"
+                    : "border-black/10 text-zinc-600 dark:border-white/10 dark:text-zinc-300"
                 }`}
               >
                 {preset.label}
@@ -747,7 +804,7 @@ export function EasingEditor() {
         </div>
       )}
 
-      <div className="rounded-lg border border-black/10 px-3 py-2 dark:border-white/10">
+      <div className="clay-inset rounded-lg bg-zinc-100 px-3 py-2 dark:bg-surface-elevated">
         <span className="break-all font-mono text-[11px] text-zinc-700 dark:text-zinc-300">
           {timingFunction}
         </span>
