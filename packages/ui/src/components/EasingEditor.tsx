@@ -760,15 +760,17 @@ export function EasingEditor() {
             either escapes the box, which reads as a rendering fault, or gets clipped, which is a
             lie about what the easing does. */}
         <div
-          // Dashed and unfilled on purpose: it marks where the overshoot may go rather than being
-          // a surface in its own right, so it stays out of the clay.
-          className="relative rounded-xl border border-black/10 border-dashed dark:border-white/10"
+          // The whole distance the dot can cover, overshoot included — so it is the surface, and
+          // gets the recessed treatment every other well in the app has.
+          className="clay-inset relative rounded-xl bg-zinc-100 dark:bg-surface-elevated"
           style={{ height: TRACK_HEIGHT }}
         >
           {/* Brackets the 0-to-1 travel, with the dot's own margin added at either end so it has
-              the same clearance sideways as it does up and down. */}
+              the same clearance sideways as it does up and down. An outline rather than a
+              surface: it marks where the animation begins and ends inside the well above, and
+              two stacked wells would just read as one hole with a lip. */}
           <div
-            className="clay-inset absolute rounded-lg bg-zinc-100 dark:bg-surface-elevated"
+            className="absolute rounded-lg border border-accent-300"
             style={{
               top: TRACK_INSET,
               bottom: TRACK_INSET,
