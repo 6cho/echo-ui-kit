@@ -1,5 +1,6 @@
 import {
   type CubicBezier,
+  cubicBezierParamAtX,
   cubicBezierProgress,
   EASING_PRESETS,
   formatCubicBezier,
@@ -33,10 +34,18 @@ const PAD =
   Math.ceil(MAX_OVERSHOOT * SIZE + HANDLE_RADIUS + HANDLE_STROKE / 2) + 8;
 const VIEW = SIZE + PAD * 2;
 
-// Where the grab points sit along the curve. Three is enough to shape a cubic and few enough that
-// they never crowd each other: the outer two lean on one control value each, the middle one on
-// both equally.
+// Where the grab points sit, as fractions of the box's width — quarter marks of elapsed time,
+// fixed there rather than riding along the curve. That is what they mean: how far along the
+// animation is a quarter, half and three quarters of the way through its duration. Handles spaced
+// along the curve instead would drift left and right as the curve changed, and would be answering
+// a question nobody asks.
 const HANDLE_POSITIONS = [0.25, 0.5, 0.75] as const;
+
+// Quarters in both directions, so the vertical lines fall exactly under the handles: each one is
+// the moment that handle answers for, and the horizontal it crosses is how far along the
+// animation would be there. Reading "half the distance by a third of the way through" off a bare
+// square means measuring it by eye.
+const GRID_STEPS = [0.25, 0.5, 0.75] as const;
 
 const TRACK_SPAN = 1 + MAX_OVERSHOOT * 2;
 
@@ -73,50 +82,40 @@ function dotLeft(value: number): string {
  * How much each control value counts toward the curve at a given point along it.
  *
  * These are the two middle Bernstein terms. They are what makes a control point a *control* point
- * rather than a point: at t the curve sits at weight1 * P1 + weight2 * P2 + t³, with the
+ * rather than a point: at parameter u the curve sits at weight1 * P1 + weight2 * P2 + u³, with the
  * endpoints fixed at 0 and 1.
  */
-function weightsAt(t: number): { weight1: number; weight2: number } {
-  return { weight1: 3 * (1 - t) ** 2 * t, weight2: 3 * (1 - t) * t ** 2 };
-}
-
-/** Where the curve is at a point along it. */
-function pointAt(bezier: CubicBezier, t: number): { x: number; y: number } {
-  const { weight1, weight2 } = weightsAt(t);
-  const end = t ** 3;
-  return {
-    x: weight1 * bezier.x1 + weight2 * bezier.x2 + end,
-    y: weight1 * bezier.y1 + weight2 * bezier.y2 + end,
-  };
+function weightsAt(u: number): { weight1: number; weight2: number } {
+  return { weight1: 3 * (1 - u) ** 2 * u, weight2: 3 * (1 - u) * u ** 2 };
 }
 
 /**
- * Moves the curve so the point at `t` lands on `target`.
+ * Moves the curve so it passes through `targetY` at the moment `u`.
  *
- * Two control points, two coordinates, one point to satisfy — the system is short of constraints,
- * so something has to decide how the correction is shared out. It goes to each control point in
- * proportion to how much that point was influencing `t` in the first place, which is the solution
- * that moves the curve's shape least to get there.
+ * Two control values, one height to satisfy — the system is short of constraints, so something
+ * has to decide how the correction is shared out. It goes to each control value in proportion to
+ * how much that one was influencing `u` in the first place, which is the solution that changes
+ * the curve's shape least to get there. In practice the outer handles mostly bend the nearer
+ * control value while the middle one bows both equally, which is what dragging a physical curve
+ * feels like.
  *
- * In practice that means the handle nearest an end mostly bends the control point nearest that
- * end, while the middle handle bows both equally — which is what dragging a physical curve feels
- * like, and is why the tangent lines this replaces were never needed to explain it.
+ * Only the heights move. The handles are pinned to fixed moments in time, so a drag is asking
+ * "be this far along *then*" — it has nothing to say about x, and touching x would slide the
+ * handle out from under the pointer.
  */
 function reshapeAt(
   bezier: CubicBezier,
-  t: number,
-  target: { x: number; y: number },
+  u: number,
+  targetY: number,
 ): CubicBezier {
-  const { weight1, weight2 } = weightsAt(t);
+  const { weight1, weight2 } = weightsAt(u);
   const share = weight1 ** 2 + weight2 ** 2;
   if (share === 0) return bezier;
-  const current = pointAt(bezier, t);
-  const dx = target.x - current.x;
-  const dy = target.y - current.y;
+  const current = weight1 * bezier.y1 + weight2 * bezier.y2 + u ** 3;
+  const dy = targetY - current;
   return {
-    x1: clamp(bezier.x1 + (dx * weight1) / share, 0, 1),
+    ...bezier,
     y1: clamp(bezier.y1 + (dy * weight1) / share, MIN_Y, MAX_Y),
-    x2: clamp(bezier.x2 + (dx * weight2) / share, 0, 1),
     y2: clamp(bezier.y2 + (dy * weight2) / share, MIN_Y, MAX_Y),
   };
 }
@@ -155,7 +154,7 @@ export function EasingEditor() {
   const [progress, setProgress] = useState(0);
 
   const svgRef = useRef<SVGSVGElement>(null);
-  // Which point along the curve is being dragged, if any.
+  // Which moment's handle is being dragged, if any — one of HANDLE_POSITIONS.
   const draggingRef = useRef<number | null>(null);
   // Read by the animation loop, which is mounted once and must not be torn down and restarted on
   // every tick of the duration slider — that would reset the loop mid-pass on every drag frame.
@@ -242,10 +241,12 @@ export function EasingEditor() {
         viewBox={`0 0 ${VIEW} ${VIEW}`}
         className="w-full touch-none select-none rounded-lg border border-black/10 bg-zinc-100 dark:border-white/10 dark:bg-surface-elevated"
         onPointerMove={(e) => {
-          const t = draggingRef.current;
-          if (t === null) return;
-          const target = pointFromEvent(e);
-          setBezier((current) => reshapeAt(current, t, target));
+          const at = draggingRef.current;
+          if (at === null) return;
+          const { y } = pointFromEvent(e);
+          setBezier((current) =>
+            reshapeAt(current, cubicBezierParamAtX(current, at), y),
+          );
         }}
         onPointerUp={(e) => {
           draggingRef.current = null;
@@ -262,14 +263,42 @@ export function EasingEditor() {
           className="fill-none stroke-black/10 dark:stroke-white/10"
           strokeWidth={1}
         />
+        {GRID_STEPS.map((step) => (
+          <g key={step}>
+            <line
+              x1={toSvgX(step)}
+              y1={toSvgY(0)}
+              x2={toSvgX(step)}
+              y2={toSvgY(1)}
+              className="stroke-black/[0.09] dark:stroke-white/[0.09]"
+              strokeDasharray="1 5"
+              strokeLinecap="round"
+              strokeWidth={1}
+            />
+            <line
+              x1={toSvgX(0)}
+              y1={toSvgY(step)}
+              x2={toSvgX(1)}
+              y2={toSvgY(step)}
+              className="stroke-black/[0.09] dark:stroke-white/[0.09]"
+              strokeDasharray="1 5"
+              strokeLinecap="round"
+              strokeWidth={1}
+            />
+          </g>
+        ))}
+
+        {/* Linear, drawn over the grid rather than under it: it is the thing a curve is read
+            against, not another gridline. */}
         <line
           x1={toSvgX(0)}
           y1={toSvgY(0)}
           x2={toSvgX(1)}
           y2={toSvgY(1)}
-          className="stroke-black/10 dark:stroke-white/10"
-          strokeDasharray="4 4"
-          strokeWidth={1}
+          className="stroke-black/20 dark:stroke-white/20"
+          strokeDasharray="1 5"
+          strokeLinecap="round"
+          strokeWidth={1.25}
         />
 
         <path
@@ -288,31 +317,30 @@ export function EasingEditor() {
           className="fill-brand-600"
         />
 
-        {/* Grab points on the curve itself. The control points they stand in for are still what
-            gets written to the CSS, but they are no longer something to aim at: a control point
-            sits off the curve, on the end of a line, at a position most of a cubic's users have
-            no intuition for — and dragging one to the far end of its range put it outside the
-            canvas entirely. */}
-        {HANDLE_POSITIONS.map((t) => {
-          const point = pointAt(bezier, t);
-          return (
-            <circle
-              key={t}
-              cx={toSvgX(point.x)}
-              cy={toSvgY(point.y)}
-              r={HANDLE_RADIUS}
-              className="cursor-grab fill-white stroke-brand-500 active:cursor-grabbing dark:fill-zinc-800"
-              strokeWidth={HANDLE_STROKE}
-              onPointerDown={(e) => {
-                draggingRef.current = t;
-                svgRef.current?.setPointerCapture(e.pointerId);
-              }}
-            />
-          );
-        })}
+        {/* Grab points at fixed moments, sitting wherever the curve is at that moment. The
+            control points they stand in for are still what gets written to the CSS, but they are
+            no longer something to aim at: a control point sits off the curve, on the end of a
+            line, at a position most of a cubic's users have no intuition for — and dragging one
+            to the far end of its range put it outside the canvas entirely. */}
+        {HANDLE_POSITIONS.map((at) => (
+          <circle
+            key={at}
+            cx={toSvgX(at)}
+            cy={toSvgY(cubicBezierProgress(bezier, at))}
+            r={HANDLE_RADIUS}
+            // Vertical only, and the cursor says so before the drag proves it.
+            className="cursor-ns-resize fill-white stroke-brand-500 dark:fill-zinc-800"
+            strokeWidth={HANDLE_STROKE}
+            onPointerDown={(e) => {
+              draggingRef.current = at;
+              svgRef.current?.setPointerCapture(e.pointerId);
+            }}
+          />
+        ))}
       </svg>
       <p className="-mt-2 text-[11px] text-zinc-500">
-        Drag any point on the curve to reshape it.
+        Drag a handle up or down to set how far along the animation is at that
+        moment.
       </p>
 
       {/* The same easing applied to motion. A curve you can only read as a shape doesn't tell you

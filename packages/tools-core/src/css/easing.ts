@@ -68,32 +68,44 @@ export function formatEasingCss(
   ].join("\n");
 }
 
+/** One axis of a cubic bezier whose endpoints are pinned at 0 and 1. */
+function axis(p1: number, p2: number, u: number): number {
+  const v = 1 - u;
+  return 3 * v * v * u * p1 + 3 * v * u * u * p2 + u * u * u;
+}
+
 /**
- * Progress at time `t` for a cubic-bezier timing function.
+ * The curve's own parameter at a given elapsed time.
  *
  * A CSS easing curve is parametric — both x and y are functions of an internal parameter, and the
- * x you want (elapsed time) doesn't map to that parameter linearly. So finding y for a given x
- * means solving for the parameter first, which is what the bisection below does. Newton's method
- * converges faster but misbehaves on the near-vertical segments that overshooting curves produce;
- * bisection is slower per call and completely unbothered by them.
+ * x you want (elapsed time) doesn't map to that parameter linearly, so it has to be solved for.
+ * Bisection rather than Newton's method: Newton converges faster but misbehaves on the
+ * near-vertical segments that overshooting curves produce, and bisection is completely unbothered
+ * by them.
+ *
+ * Exposed separately from the progress below because an editor needs the parameter itself, not
+ * just the value there: how much each control point is influencing the curve at a given moment is
+ * a function of the parameter, and that is what says where a drag at that moment should go.
  */
-export function cubicBezierProgress(bezier: CubicBezier, t: number): number {
-  const axis = (p1: number, p2: number, u: number) => {
-    const v = 1 - u;
-    return 3 * v * v * u * p1 + 3 * v * u * u * p2 + u * u * u;
-  };
-  if (t <= 0) return 0;
-  if (t >= 1) return 1;
-
+export function cubicBezierParamAtX(bezier: CubicBezier, x: number): number {
+  if (x <= 0) return 0;
+  if (x >= 1) return 1;
   let low = 0;
   let high = 1;
-  let guess = t;
+  let guess = x;
   for (let i = 0; i < 24; i++) {
-    const x = axis(bezier.x1, bezier.x2, guess);
-    if (Math.abs(x - t) < 1e-5) break;
-    if (x < t) low = guess;
+    const at = axis(bezier.x1, bezier.x2, guess);
+    if (Math.abs(at - x) < 1e-5) break;
+    if (at < x) low = guess;
     else high = guess;
     guess = (low + high) / 2;
   }
-  return axis(bezier.y1, bezier.y2, guess);
+  return guess;
+}
+
+/** Progress at elapsed time `t` for a cubic-bezier timing function. */
+export function cubicBezierProgress(bezier: CubicBezier, t: number): number {
+  if (t <= 0) return 0;
+  if (t >= 1) return 1;
+  return axis(bezier.y1, bezier.y2, cubicBezierParamAtX(bezier, t));
 }
