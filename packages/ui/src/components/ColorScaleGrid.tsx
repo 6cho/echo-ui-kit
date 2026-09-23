@@ -102,12 +102,18 @@ export function ColorScaleGrid({
         ))}
       </div>
 
-      <div className="flex flex-1 gap-1">
+      {/* One grid rather than a row of separate cards. The columns are steps of the same scheme
+          and belong edge to edge: a gutter between them reads as three unrelated ramps, and it
+          also puts the interface's own background between two colours that are being compared,
+          which is the one thing a swatch should never have next to it. The rounding is the
+          container's alone, and kept modest — the corner eats into the top and bottom steps of
+          the outer columns, so every pixel of radius is a pixel of colour not shown. */}
+      <div className="flex flex-1 overflow-hidden rounded-md border border-black/10 dark:border-white/10">
         {columns.map((column, colIndex) => (
           <div
             // biome-ignore lint/suspicious/noArrayIndexKey: fixed column layout, columns never reorder within a render
             key={colIndex}
-            className="flex flex-1 flex-col overflow-hidden rounded-xl border border-black/10 dark:border-white/10"
+            className="flex flex-1 flex-col"
           >
             {column.map((cell, rowIndex) => {
               const step = steps[rowIndex];
