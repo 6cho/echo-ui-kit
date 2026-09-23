@@ -190,6 +190,10 @@ function toSvgY(y: number): number {
 // the examples move it by a measured distance, and that distance has to know how big it is.
 const SHAPE = 24;
 const TILE_PAD = 10;
+// Set here rather than with a rounded-* class. The theme's radii are sized for panels and cards,
+// where doubling them for claymorphism is the whole point; at 24px across, the same radius is
+// half the shape and turns every example into a circle.
+const SHAPE_RADIUS = 6;
 
 function Tile({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -222,8 +226,12 @@ function Centred({ children }: { children: ReactNode }) {
  * seeing them together is the only way to notice that.
  */
 function Examples({ eased }: { eased: number }) {
-  const shape = "rounded-md bg-brand-600";
-  const size = { height: SHAPE, width: SHAPE };
+  const shape = "bg-brand-600";
+  const size = {
+    height: SHAPE,
+    width: SHAPE,
+    borderRadius: SHAPE_RADIUS,
+  };
   return (
     <div className="grid grid-cols-3 gap-2">
       <Tile label="Fade">
@@ -271,10 +279,20 @@ function Examples({ eased }: { eased: number }) {
 
       <Tile label="Rotate">
         <Centred>
-          <div
-            className={shape}
-            style={{ ...size, transform: `rotate(${eased * 180}deg)` }}
-          />
+          {/* An arrow, not the square the others use: a square is the same picture every quarter
+              turn, so half a turn of one is a very convincing animation of nothing at all. */}
+          <svg
+            viewBox="0 0 24 24"
+            className="fill-brand-600"
+            style={{
+              ...size,
+              borderRadius: 0,
+              transform: `rotate(${eased * 180}deg)`,
+            }}
+            aria-hidden="true"
+          >
+            <path d="M3 9.5h11V4l7 8-7 8v-5.5H3z" />
+          </svg>
         </Centred>
       </Tile>
 
