@@ -240,7 +240,10 @@ export function AppShell() {
    * has already taken its contents out of the tree before the column starts to move.
    */
   const [entering, setEntering] = useState<{
-    index: number;
+    /** Slots whose contents are arriving — a different tool, or the first one. */
+    contents: number[];
+    /** Slots whose card and header are arriving too, because they were empty rails. */
+    panels: number[];
     revealed: boolean;
   } | null>(null);
   // A rail that has just appeared, so it can fade in rather than blink into place.
@@ -255,9 +258,22 @@ export function AppShell() {
   // tool for making palettes that doesn't use the one you just made is a worse demonstration of
   // it than any amount of preview, and it is one switch away in the theme menu.
   const [isAppThemed, setIsAppThemed] = useState(true);
-  // Which slot is on its way out. It still holds its tool for the length of the fade — emptying
-  // it first would take the panel away before there was anything to watch.
-  const [exitingSlot, setExitingSlot] = useState<number | null>(null);
+  /**
+   * A slot change that hasn't been applied yet, held for the length of the fade.
+   *
+   * The slots keep their current tools throughout it — applying the change first would swap the
+   * contents and then fade in something that was already on screen.
+   *
+   * The whole row rather than one index, because a change can touch two slots at once: picking a
+   * tool that's already open somewhere else makes the two panels trade contents.
+   */
+  const [pending, setPending] = useState<{
+    next: (ToolId | null)[];
+    changed: number[];
+    /** Of those, the ones that were empty rails — recorded now, because by the time this is
+     *  applied the row it was measured against is the row being replaced. */
+    arriving: number[];
+  } | null>(null);
   // The tracks move for two different reasons and only one of them should animate. Opening,
   // closing and reordering are discrete changes worth watching; a window being dragged is a
   // continuous one, where easing each step would turn the row into a lagging rubber band. So the
@@ -337,22 +353,39 @@ export function AppShell() {
   }, [maxPanels]);
 
   /**
-   * Empties a slot once its panel has faded, rather than removing it — the slot is a position,
-   * and the others shouldn't shuffle along because one of them was closed.
+   * Applies a slot change once what was in it has faded, then fades in what replaced it.
+   *
+   * A slot is emptied rather than removed — the slot is a position, and the others shouldn't
+   * shuffle along because one of them was closed.
    */
   useEffect(() => {
-    if (exitingSlot === null) return;
+    if (!pending) return;
     const timer = setTimeout(() => {
-      setSlots((current) => {
-        const next = [...current];
-        next[exitingSlot] = null;
-        return next;
-      });
-      setExitingSlot(null);
-      setEnteringRail(exitingSlot);
+      setSlots(pending.next);
+      const filled = pending.changed.filter(
+        (index) => pending.next[index] !== null,
+      );
+      const emptied = pending.changed.find(
+        (index) => pending.next[index] === null,
+      );
+      // Straight past the growth beat: the column is already the width it needs to be, so there
+      // is nothing for the contents to wait out. Only a slot opening from a rail has that.
+      setEntering(
+        filled.length > 0
+          ? {
+              contents: filled,
+              // Only the slots that were rails get their card and header faded in; a slot that
+              // merely changed tool already has both, and fading them would blink the panel.
+              panels: pending.arriving,
+              revealed: true,
+            }
+          : null,
+      );
+      setEnteringRail(emptied ?? null);
+      setPending(null);
     }, PANEL_EXIT_MS);
     return () => clearTimeout(timer);
-  }, [exitingSlot]);
+  }, [pending]);
 
   /**
    * Walks an opening panel through its two beats: wait out the column's growth with the card
@@ -360,9 +393,9 @@ export function AppShell() {
    */
   useEffect(() => {
     if (!entering) return;
-    const { index, revealed } = entering;
+    const { contents, panels, revealed } = entering;
     const timer = setTimeout(
-      () => setEntering(revealed ? null : { index, revealed: true }),
+      () => setEntering(revealed ? null : { contents, panels, revealed: true }),
       revealed ? PANEL_CONTENT_MS + 60 : LAYOUT_TRANSITION_MS,
     );
     return () => clearTimeout(timer);
@@ -754,28 +787,45 @@ export function AppShell() {
    * from — so "show it in two places" isn't something the layout can express.
    */
   function openInPanel(index: number, id: ToolId) {
-    setSlots((current) => {
-      const next = [...current];
-      const existing = current.indexOf(id);
-      if (existing !== -1 && existing !== index) {
-        next[existing] = current[index] ?? null;
-      }
-      next[index] = id;
-      return next;
+    const next = [...slots];
+    const existing = slots.indexOf(id);
+    if (existing !== -1 && existing !== index) {
+      next[existing] = slots[index] ?? null;
+    }
+    next[index] = id;
+    beginSlotChange(next);
+  }
+
+  /**
+   * Fades out whatever is in the slots that are about to change, and applies the change once it
+   * has gone. A tool appearing in place of another between two frames reads as the panel having
+   * been replaced rather than as having switched — the fade is what says it is the same panel
+   * showing something else.
+   */
+  function beginSlotChange(next: (ToolId | null)[]) {
+    const changed = next.reduce<number[]>((indices, tool, index) => {
+      if (tool !== slots[index]) indices.push(index);
+      return indices;
+    }, []);
+    if (changed.length === 0) return;
+    setPending({
+      next,
+      changed,
+      arriving: changed.filter(
+        (index) => slots[index] === null && next[index] !== null,
+      ),
     });
   }
 
   /** Brings a tool into view without disturbing the others — used when an action in one panel
    *  needs to hand off to a specific tool. */
   function focusTool(id: ToolId) {
-    setSlots((current) => {
-      if (current.includes(id)) return current;
-      const next = [...current];
-      // An empty slot first, so handing off doesn't evict a tool that's in use.
-      const target = current.indexOf(null);
-      next[target === -1 ? 0 : target] = id;
-      return next;
-    });
+    if (slots.includes(id)) return;
+    const next = [...slots];
+    // An empty slot first, so handing off doesn't evict a tool that's in use.
+    const target = slots.indexOf(null);
+    next[target === -1 ? 0 : target] = id;
+    beginSlotChange(next);
   }
 
   /** Fills the slot that was clicked, leaving every other slot exactly where it is. */
@@ -787,13 +837,15 @@ export function AppShell() {
       next[index] = unused.id as ToolId;
       return next;
     });
-    setEntering({ index, revealed: false });
+    setEntering({ contents: [index], panels: [index], revealed: false });
   }
 
   /** Starts the panel fading. The slot is emptied by the effect below, once it has. */
   function closePanel(index: number) {
-    if (openCount <= 1 || exitingSlot !== null) return;
-    setExitingSlot(index);
+    if (openCount <= 1 || pending) return;
+    const next = [...slots];
+    next[index] = null;
+    beginSlotChange(next);
   }
 
   /**
@@ -905,10 +957,21 @@ export function AppShell() {
 
   /** Opening, with its column still growing — nothing of the panel but the card is in the tree. */
   const isGrowing = (index: number) =>
-    entering?.index === index && !entering.revealed;
+    entering !== null &&
+    !entering.revealed &&
+    entering.contents.includes(index);
   /** Opening, column settled — the contents are in and fading up. */
   const isRevealing = (index: number) =>
-    entering?.index === index && entering.revealed;
+    (entering?.revealed && entering.contents.includes(index)) ?? false;
+  /** The contents are on their way out — replaced by another tool, or going entirely. */
+  const isLeaving = (index: number) =>
+    pending?.changed.includes(index) ?? false;
+  /** The panel itself is going, not just what is in it. */
+  const isPanelLeaving = (index: number) =>
+    isLeaving(index) && pending?.next[index] === null;
+  /** The panel itself is arriving, rather than a new tool arriving inside an existing one. */
+  const isPanelArriving = (index: number) =>
+    (entering?.revealed && entering.panels.includes(index)) ?? false;
 
   /**
    * Wraps one tool in its grid cell.
@@ -937,7 +1000,7 @@ export function AppShell() {
             ? `${scrolls ? "overflow-y-auto" : "flex flex-col"} min-h-0 ${
                 isCarded ? "rounded-b-xl" : ""
               } ${isRevealing(index) ? "animate-panel-content-in" : ""} ${
-                index === exitingSlot ? "animate-panel-out" : ""
+                isLeaving(index) ? "animate-panel-out" : ""
               }`
             : "hidden"
         }
@@ -1019,10 +1082,10 @@ export function AppShell() {
                     ...dragStyle(index),
                   }}
                   className={`pointer-events-none rounded-xl border border-black/10 clay bg-white dark:border-white/10 dark:bg-surface ${
-                    entering?.index === index && !entering.revealed
+                    isGrowing(index) || isPanelArriving(index)
                       ? "animate-panel-card-in"
                       : ""
-                  } ${index === exitingSlot ? "animate-panel-out" : ""}`}
+                  } ${isPanelLeaving(index) ? "animate-panel-out" : ""}`}
                 />
               ),
             )}
@@ -1060,9 +1123,9 @@ export function AppShell() {
                             ? "cursor-grabbing"
                             : "cursor-grab"
                           : ""
-                      } ${isRevealing(index) ? "animate-panel-content-in" : ""} ${
-                        index === exitingSlot ? "animate-panel-out" : ""
-                      }`
+                      } ${
+                        isPanelArriving(index) ? "animate-panel-content-in" : ""
+                      } ${isPanelLeaving(index) ? "animate-panel-out" : ""}`
                 }
               >
                 {/* Says the header is a handle, in the corner of the card where a handle is
@@ -1084,7 +1147,12 @@ export function AppShell() {
                 )}
                 <ToolSwitcher
                   tools={tools}
-                  activeId={slotTool}
+                  // The tool being switched to, before the switch has been applied. The label is
+                  // the confirmation that the click landed, and holding it back for the length
+                  // of the fade makes the menu feel like it missed.
+                  activeId={
+                    (isLeaving(index) ? pending?.next[index] : null) ?? slotTool
+                  }
                   onChange={(id) => openInPanel(index, id as ToolId)}
                 />
                 {openCount > 1 && (
