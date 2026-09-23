@@ -635,121 +635,148 @@ export function EasingEditor() {
         ))}
       </div>
 
-      <svg
-        ref={svgRef}
-        viewBox={`0 0 ${VIEW} ${VIEW}`}
-        // Recessed, like every other surface here that something sits inside rather than on.
-        className="clay-inset w-full touch-none select-none rounded-lg bg-zinc-100 dark:bg-surface-elevated"
-        onPointerMove={(e) => {
-          const dragged = draggingRef.current;
-          if (dragged === null) return;
-          const { y } = pointFromEvent(e);
-          dragHandle(dragged, y);
-        }}
-        onPointerUp={(e) => {
-          draggingRef.current = null;
-          e.currentTarget.releasePointerCapture(e.pointerId);
-        }}
-        aria-label="Easing curve"
-      >
-        <title>Easing curve</title>
-        <rect
-          x={PAD}
-          y={PAD}
-          width={SIZE}
-          height={SIZE}
-          className="fill-none stroke-accent-300/55"
-          strokeWidth={1}
-        />
-        {GRID_STEPS.map((step) => (
-          <g key={step}>
-            <line
-              x1={toSvgX(step)}
-              y1={toSvgY(0)}
-              x2={toSvgX(step)}
-              y2={toSvgY(1)}
-              className="stroke-accent-300/45"
-              strokeDasharray="1 5"
-              strokeLinecap="round"
-              strokeWidth={1}
-            />
-            <line
-              x1={toSvgX(0)}
-              y1={toSvgY(step)}
-              x2={toSvgX(1)}
-              y2={toSvgY(step)}
-              className="stroke-accent-300/45"
-              strokeDasharray="1 5"
-              strokeLinecap="round"
-              strokeWidth={1}
-            />
-          </g>
-        ))}
+      <div className="relative">
+        <svg
+          ref={svgRef}
+          viewBox={`0 0 ${VIEW} ${VIEW}`}
+          // Recessed, like every other surface here that something sits inside rather than on.
+          className="clay-inset w-full touch-none select-none rounded-lg bg-zinc-100 dark:bg-surface-elevated"
+          onPointerMove={(e) => {
+            const dragged = draggingRef.current;
+            if (dragged === null) return;
+            const { y } = pointFromEvent(e);
+            dragHandle(dragged, y);
+          }}
+          onPointerUp={(e) => {
+            draggingRef.current = null;
+            e.currentTarget.releasePointerCapture(e.pointerId);
+          }}
+          aria-label="Easing curve"
+        >
+          <title>Easing curve</title>
+          <rect
+            x={PAD}
+            y={PAD}
+            width={SIZE}
+            height={SIZE}
+            className="fill-none stroke-accent-300/55"
+            strokeWidth={1}
+          />
+          {GRID_STEPS.map((step) => (
+            <g key={step}>
+              <line
+                x1={toSvgX(step)}
+                y1={toSvgY(0)}
+                x2={toSvgX(step)}
+                y2={toSvgY(1)}
+                className="stroke-accent-300/45"
+                strokeDasharray="1 5"
+                strokeLinecap="round"
+                strokeWidth={1}
+              />
+              <line
+                x1={toSvgX(0)}
+                y1={toSvgY(step)}
+                x2={toSvgX(1)}
+                y2={toSvgY(step)}
+                className="stroke-accent-300/45"
+                strokeDasharray="1 5"
+                strokeLinecap="round"
+                strokeWidth={1}
+              />
+            </g>
+          ))}
 
-        {/* Linear, drawn over the grid rather than under it: it is the thing a curve is read
+          {/* Linear, drawn over the grid rather than under it: it is the thing a curve is read
             against, not another gridline — and left neutral for the same reason, so it doesn't
             join the grid now that the grid has a colour. */}
-        <line
-          x1={toSvgX(0)}
-          y1={toSvgY(0)}
-          x2={toSvgX(1)}
-          y2={toSvgY(1)}
-          className="stroke-black/25 dark:stroke-white/25"
-          strokeDasharray="1 5"
-          strokeLinecap="round"
-          strokeWidth={1.25}
-        />
+          <line
+            x1={toSvgX(0)}
+            y1={toSvgY(0)}
+            x2={toSvgX(1)}
+            y2={toSvgY(1)}
+            className="stroke-black/25 dark:stroke-white/25"
+            strokeDasharray="1 5"
+            strokeLinecap="round"
+            strokeWidth={1.25}
+          />
 
-        {/* Straight between the points, because that is exactly what linear() does — drawing it
+          {/* Straight between the points, because that is exactly what linear() does — drawing it
             smoothed would be a nicer picture of a different timing function. */}
-        <path
-          d={
-            isLinear
-              ? `M ${toSvgX(0)} ${toSvgY(0)} ${points
-                  .map(
-                    (value, index) =>
-                      `L ${toSvgX(linearPointAt(index, points.length))} ${toSvgY(value)}`,
-                  )
-                  .join(" ")} L ${toSvgX(1)} ${toSvgY(1)}`
-              : `M ${toSvgX(0)} ${toSvgY(0)} C ${toSvgX(bezier.x1)} ${toSvgY(bezier.y1)}, ${toSvgX(bezier.x2)} ${toSvgY(bezier.y2)}, ${toSvgX(1)} ${toSvgY(1)}`
-          }
-          className="fill-none stroke-brand-500"
-          strokeWidth={2.5}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+          <path
+            d={
+              isLinear
+                ? `M ${toSvgX(0)} ${toSvgY(0)} ${points
+                    .map(
+                      (value, index) =>
+                        `L ${toSvgX(linearPointAt(index, points.length))} ${toSvgY(value)}`,
+                    )
+                    .join(" ")} L ${toSvgX(1)} ${toSvgY(1)}`
+                : `M ${toSvgX(0)} ${toSvgY(0)} C ${toSvgX(bezier.x1)} ${toSvgY(bezier.y1)}, ${toSvgX(bezier.x2)} ${toSvgY(bezier.y2)}, ${toSvgX(1)} ${toSvgY(1)}`
+            }
+            className="fill-none stroke-brand-500"
+            strokeWidth={2.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
 
-        {/* Where the animation currently sits, on the curve itself — the link between the shape
+          {/* Where the animation currently sits, on the curve itself — the link between the shape
             and the motion below it. */}
-        <circle
-          cx={toSvgX(progress)}
-          cy={toSvgY(eased)}
-          r={5}
-          className="fill-brand-600"
-        />
+          <circle
+            cx={toSvgX(progress)}
+            cy={toSvgY(eased)}
+            r={5}
+            className="fill-brand-600"
+          />
 
-        {/* Grab points at fixed moments, sitting wherever the curve is at that moment. For a
+          {/* Grab points at fixed moments, sitting wherever the curve is at that moment. For a
             cubic these stand in for control points, which sit off the curve on the end of a line
             at a position most of a cubic's users have no intuition for. For a linear function
             they are the function. */}
-        {handles.map((at, index) => (
-          <circle
-            key={at}
-            cx={toSvgX(at)}
-            cy={toSvgY(valueAt(at))}
-            r={HANDLE_RADIUS}
-            // Vertical only, and the cursor says so before the drag proves it.
-            className="cursor-ns-resize fill-white stroke-brand-500 dark:fill-zinc-800"
-            strokeWidth={HANDLE_STROKE}
-            onPointerDown={(e) => {
-              // Taking hold of the curve calls off whatever a preset was still doing to it.
-              cancelTween();
-              draggingRef.current = index;
-              svgRef.current?.setPointerCapture(e.pointerId);
-            }}
-          />
-        ))}
-      </svg>
+          {handles.map((at, index) => (
+            <circle
+              key={at}
+              cx={toSvgX(at)}
+              cy={toSvgY(valueAt(at))}
+              r={HANDLE_RADIUS}
+              // Vertical only, and the cursor says so before the drag proves it.
+              className="cursor-ns-resize fill-white stroke-brand-500 dark:fill-zinc-800"
+              strokeWidth={HANDLE_STROKE}
+              onPointerDown={(e) => {
+                // Taking hold of the curve calls off whatever a preset was still doing to it.
+                cancelTween();
+                draggingRef.current = index;
+                svgRef.current?.setPointerCapture(e.pointerId);
+              }}
+            />
+          ))}
+        </svg>
+        {/* In the canvas's own corner rather than beside a label elsewhere. It governs one clock
+          that everything here reads — the dot on the curve, the track and the examples — and the
+          curve is where you are looking when you want it stopped. The margin the canvas keeps for
+          overshooting handles is empty space by design, so it costs nothing to sit in. */}
+        <button
+          type="button"
+          onClick={() => setIsPlaying((playing) => !playing)}
+          title={isPlaying ? "Pause the preview" : "Play the preview"}
+          aria-label={isPlaying ? "Pause the preview" : "Play the preview"}
+          aria-pressed={!isPlaying}
+          className="clay absolute right-3 bottom-3 flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-black/10 bg-white text-zinc-600 transition active:scale-90 dark:border-white/10 dark:bg-surface-elevated dark:text-zinc-300"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            className="h-3.5 w-3.5"
+            aria-hidden="true"
+          >
+            {isPlaying ? (
+              <path d="M8 5h3v14H8zM13 5h3v14h-3z" />
+            ) : (
+              <path d="M8 5.5v13l11-6.5z" />
+            )}
+          </svg>
+        </button>
+      </div>
       <p className="-mt-2 text-[11px] text-zinc-500">
         {isLinear
           ? "Drag a point up or down. Each one moves on its own."
@@ -760,34 +787,9 @@ export function EasingEditor() {
           how it feels, which is the only thing that actually decides whether it's right. */}
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-              Preview
-            </span>
-            {/* Everything below runs off one clock, so one control stops all of it — the dot on
-                the curve, the track, and the six examples. */}
-            <button
-              type="button"
-              onClick={() => setIsPlaying((playing) => !playing)}
-              title={isPlaying ? "Pause the preview" : "Play the preview"}
-              aria-label={isPlaying ? "Pause the preview" : "Play the preview"}
-              aria-pressed={!isPlaying}
-              className="clay flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border border-black/10 bg-white text-zinc-600 transition active:scale-90 dark:border-white/10 dark:bg-surface-elevated dark:text-zinc-300"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                className="h-3 w-3"
-                aria-hidden="true"
-              >
-                {isPlaying ? (
-                  <path d="M8 5h3v14H8zM13 5h3v14h-3z" />
-                ) : (
-                  <path d="M8 5.5v13l11-6.5z" />
-                )}
-              </svg>
-            </button>
-          </div>
+          <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+            Preview
+          </span>
           {overshoots && (
             <span className="text-[11px] text-zinc-500">
               Overshoots its own range
