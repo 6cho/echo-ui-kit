@@ -37,6 +37,10 @@ const SURFACE_STEPS: [name: string, lightness: number][] = [
 // interface stops looking tinted and starts looking coloured, which fights whatever palette is
 // being shown inside it.
 const NEUTRAL_CHROMA = 0.016;
+// A palette this colourful gets the full tint; below it the tint fades out in proportion. Without
+// this the tint was all-or-nothing at a threshold, so dragging the saturation slider down snapped
+// the entire interface back to stock blue at one particular value.
+const FULL_TINT_CHROMA = 0.08;
 // The lightest steps take less: at 98% lightness the same chroma reads as a wash of colour
 // rather than a tint, and white-ish surfaces are most of the interface's area.
 const PALE_NEUTRAL_CHROMA = 0.007;
@@ -46,6 +50,11 @@ const PALE_THRESHOLD = 0.9;
 // action becomes unreadable. A pale palette gets its accent darkened until it does.
 const ON_PRIMARY = "#ffffff";
 const PRIMARY_MIN_CONTRAST = 4.5;
+// Where the accent starts before that. The interface's own figure, not the palette's: which entry
+// of a scale happens to be the most colourful is an accident of the scale, and for a muted
+// palette it is often the darkest step. Inheriting its lightness made the app's primary colour
+// follow the palette's *darkness* around, which at the low end produced a black button.
+const PRIMARY_LIGHTNESS = 0.55;
 
 export interface AppTheme {
   /** Custom properties to set on the document root. */
@@ -92,11 +101,24 @@ export function deriveAppTheme(palette: string[]): AppTheme | null {
   const hue = accent.oklch.h ?? 0;
   const chroma = accent.oklch.c ?? 0;
 
-  // A palette of pure greys has no hue to lend. Better to leave the interface alone than to tint
-  // it with an arbitrary one.
-  if (chroma < 0.02) return null;
+  // A palette of pure greys has no hue to lend, and culori's hue for an achromatic colour is
+  // whatever fell out of the conversion. Anything with even a trace of colour is themed, so the
+  // tint arrives by fading in rather than by crossing a line.
+  if (chroma < 0.002) return null;
 
-  const primary = darkenUntilReadable({ ...accent.oklch, h: hue, c: chroma });
+  // How much of the tint this palette has earned. Full colour gets all of it; a nearly grey
+  // palette gets nearly none, which is both what it should look like and what stops the effect
+  // switching on and off as a saturation slider passes a threshold.
+  const strength = Math.min(1, chroma / FULL_TINT_CHROMA);
+  const neutralChroma = NEUTRAL_CHROMA * strength;
+  const paleChroma = PALE_NEUTRAL_CHROMA * strength;
+
+  const primary = darkenUntilReadable({
+    mode: "oklch",
+    l: PRIMARY_LIGHTNESS,
+    c: chroma,
+    h: hue,
+  });
 
   const variables: Record<string, string> = {
     // 500 is the lighter accent the interface uses for rings and marks; 600 is what it fills
@@ -128,7 +150,7 @@ export function deriveAppTheme(palette: string[]): AppTheme | null {
     "--color-white": toHex({
       mode: "oklch",
       l: 0.995,
-      c: PALE_NEUTRAL_CHROMA * 0.6,
+      c: paleChroma * 0.6,
       h: hue,
     }),
   };
@@ -137,7 +159,7 @@ export function deriveAppTheme(palette: string[]): AppTheme | null {
     variables[`--color-zinc-${step}`] = toHex({
       mode: "oklch",
       l: lightness,
-      c: lightness > PALE_THRESHOLD ? PALE_NEUTRAL_CHROMA : NEUTRAL_CHROMA,
+      c: lightness > PALE_THRESHOLD ? paleChroma : neutralChroma,
       h: hue,
     });
   }
@@ -146,7 +168,7 @@ export function deriveAppTheme(palette: string[]): AppTheme | null {
     variables[`--color-${name}`] = toHex({
       mode: "oklch",
       l: lightness,
-      c: NEUTRAL_CHROMA,
+      c: neutralChroma,
       h: hue,
     });
   }
@@ -167,7 +189,7 @@ function darkenUntilReadable(base: {
   c: number;
   h: number;
 }): string {
-  let lightness = Math.min(base.l, 0.62);
+  let lightness = base.l;
   for (let attempt = 0; attempt < 24; attempt++) {
     const hex = toHex({ ...base, l: lightness });
     if (contrastRatio(hex, ON_PRIMARY) >= PRIMARY_MIN_CONTRAST) return hex;
