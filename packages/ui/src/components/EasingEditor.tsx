@@ -312,7 +312,9 @@ function Examples({ eased }: { eased: number }) {
           style={{ opacity: clamp(eased, 0, 1) }}
         />
         <div
-          className="absolute inset-y-0 left-0 flex flex-col justify-center gap-1.5 bg-brand-600 px-2"
+          // A surface one step up from the tile behind it, which is how every other panel in
+          // this app is layered — the accent belongs on what the menu says, not on the menu.
+          className="absolute inset-y-0 left-0 flex flex-col justify-center gap-1.5 bg-white px-2 shadow-sm dark:bg-surface-hover"
           style={{
             width: "55%",
             borderTopRightRadius: SHAPE_RADIUS,
@@ -327,7 +329,7 @@ function Examples({ eased }: { eased: number }) {
           {[0.85, 0.6, 0.75].map((width) => (
             <span
               key={width}
-              className="h-1 rounded-full bg-white/80"
+              className="h-1 rounded-full bg-brand-600"
               style={{ width: `${width * 100}%` }}
             />
           ))}
