@@ -432,6 +432,7 @@ export function EasingEditor() {
   const [points, setPoints] = useState<number[]>([0.25, 0.5, 0.75]);
   const [duration, setDuration] = useState(DEFAULT_DURATION);
   const [progress, setProgress] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(true);
 
   const svgRef = useRef<SVGSVGElement>(null);
   // Which handle is being dragged, if any — an index into whichever set is on screen.
@@ -441,6 +442,10 @@ export function EasingEditor() {
   const durationRef = useRef(duration);
   // What the loop is actually running at, which is only the duration once it has warmed up.
   const playbackRef = useRef(WARMUP_DURATION);
+  // Where the pass had got to, so pausing holds the position and playing carries on from it
+  // rather than snapping back to the start. A ref because the loop has to read it without being
+  // torn down and rebuilt on every frame it writes.
+  const progressRef = useRef(0);
   // A preset on its way in, so it can be called off the moment a handle is grabbed.
   const tweenRef = useRef<number | null>(null);
 
@@ -541,8 +546,17 @@ export function EasingEditor() {
   // app's stylesheet (this package deliberately ships no global CSS), and running the math here
   // means the dot and the curve can never disagree about what the easing does.
   useEffect(() => {
+    // Paused means no frames at all, rather than frames that decide to do nothing. A curve you
+    // have stopped to look at should cost what looking at a picture costs.
+    if (!isPlaying) return;
     let frame = 0;
-    let start = performance.now();
+    // Wound back to wherever the pass had got to, so resuming continues the travel instead of
+    // restarting it.
+    let start = performance.now() - progressRef.current * playbackRef.current;
+    function advance(value: number) {
+      progressRef.current = value;
+      setProgress(value);
+    }
     function tick(now: number) {
       const cycle = playbackRef.current;
       const elapsed = now - start;
@@ -554,15 +568,15 @@ export function EasingEditor() {
         const next = target + (cycle - target) * WARMUP_DECAY;
         playbackRef.current =
           Math.abs(next - target) < WARMUP_SETTLE_MS ? target : next;
-        setProgress(0);
+        advance(0);
       } else {
-        setProgress(elapsed / cycle);
+        advance(elapsed / cycle);
       }
       frame = requestAnimationFrame(tick);
     }
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, []);
+  }, [isPlaying]);
 
   function pointFromEvent(e: React.PointerEvent): { x: number; y: number } {
     const rect = svgRef.current?.getBoundingClientRect();
@@ -745,10 +759,35 @@ export function EasingEditor() {
       {/* The same easing applied to motion. A curve you can only read as a shape doesn't tell you
           how it feels, which is the only thing that actually decides whether it's right. */}
       <div className="flex flex-col gap-1.5">
-        <div className="flex items-baseline justify-between gap-2">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-            Preview
-          </span>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+              Preview
+            </span>
+            {/* Everything below runs off one clock, so one control stops all of it — the dot on
+                the curve, the track, and the six examples. */}
+            <button
+              type="button"
+              onClick={() => setIsPlaying((playing) => !playing)}
+              title={isPlaying ? "Pause the preview" : "Play the preview"}
+              aria-label={isPlaying ? "Pause the preview" : "Play the preview"}
+              aria-pressed={!isPlaying}
+              className="clay flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border border-black/10 bg-white text-zinc-600 transition active:scale-90 dark:border-white/10 dark:bg-surface-elevated dark:text-zinc-300"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                className="h-3 w-3"
+                aria-hidden="true"
+              >
+                {isPlaying ? (
+                  <path d="M8 5h3v14H8zM13 5h3v14h-3z" />
+                ) : (
+                  <path d="M8 5.5v13l11-6.5z" />
+                )}
+              </svg>
+            </button>
+          </div>
           {overshoots && (
             <span className="text-[11px] text-zinc-500">
               Overshoots its own range
