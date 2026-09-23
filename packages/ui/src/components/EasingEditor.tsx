@@ -4,9 +4,14 @@ import {
   cubicBezierProgress,
   EASING_PRESETS,
   formatCubicBezier,
-  formatEasingCss,
+  formatLinearEasing,
+  formatTimingCss,
+  LINEAR_MAX_POINTS,
+  linearPointAt,
+  linearProgress,
+  resampleLinear,
 } from "@echo-ui-kit/tools-core";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CssOutput } from "./CssOutput";
 import { Slider } from "./Slider";
 import { ToolColumns } from "./ToolColumns";
@@ -34,12 +39,18 @@ const PAD =
   Math.ceil(MAX_OVERSHOOT * SIZE + HANDLE_RADIUS + HANDLE_STROKE / 2) + 8;
 const VIEW = SIZE + PAD * 2;
 
-// Where the grab points sit, as fractions of the box's width — quarter marks of elapsed time,
-// fixed there rather than riding along the curve. That is what they mean: how far along the
-// animation is a quarter, half and three quarters of the way through its duration. Handles spaced
-// along the curve instead would drift left and right as the curve changed, and would be answering
-// a question nobody asks.
-const HANDLE_POSITIONS = [0.25, 0.5, 0.75] as const;
+/**
+ * Where a cubic's grab points sit, as fractions of the box's width.
+ *
+ * Two, not three, and that is the whole of it: a cubic bezier has exactly two free heights, so
+ * two handles can be placed independently and any third has nowhere to be but where those two put
+ * it. Three handles meant dragging one dragged the others, which is most of the point of having
+ * them. If you want points that genuinely move alone, that is what the linear mode is.
+ *
+ * At the quarter marks so they fall on the grid, and so each one means something sayable: how far
+ * along the animation is a quarter and three quarters of the way through its duration.
+ */
+const CUBIC_HANDLES = [0.25, 0.75] as const;
 
 // Quarters in both directions, so the vertical lines fall exactly under the handles: each one is
 // the moment that handle answers for, and the horizontal it crosses is how far along the
@@ -96,66 +107,52 @@ function heightAt(bezier: CubicBezier, u: number): number {
 }
 
 /**
- * Moves the curve so the handle at `dragged` lands on `targetY`, disturbing the other two as
- * little as the curve allows.
+ * Moves the curve so the dragged handle lands on `targetY` and the other one does not move at
+ * all.
  *
- * It cannot leave them alone entirely, and no amount of cleverness changes that: a cubic bezier
- * has exactly two free heights, and there are three handles. Any two of them can be placed
- * anywhere; the third then has nowhere to be but where those two put it. Three handles is one
- * more than the curve has opinions.
- *
- * So the freedom gets spent deliberately instead of accidentally. Every pair of control heights
- * that puts the dragged handle exactly on target forms a line — one equation, two unknowns — and
- * the curve is free to sit anywhere along it. Walking that line to the point where the other two
- * handles move least is a one-dimensional least-squares fit, solved outright rather than
- * searched. The dragged handle still lands exactly under the pointer; the others give up about
- * half the movement they used to.
- *
- * The previous version shared the correction between the control points by how much each was
- * influencing the dragged moment, which minimised how far the *control points* moved. That is a
- * different thing from minimising how far the *handles* move, and it is the handles you can see.
+ * Two handles, two free heights: the system is square, so it is solved outright rather than
+ * compromised. Hold one handle where it is, put the other where the pointer is, and there is
+ * exactly one pair of control heights that does both — which is why there are two handles and not
+ * three. Clamping is the only thing that can stop it: if the heights a request needs are outside
+ * what CSS will take, the curve goes as far as it can and the held handle gives a little.
  */
 function reshapeAt(
   bezier: CubicBezier,
   dragged: number,
   targetY: number,
 ): CubicBezier {
-  const params = HANDLE_POSITIONS.map((at) => cubicBezierParamAtX(bezier, at));
-  const held = params[dragged];
-  if (held === undefined) return bezier;
+  const params = CUBIC_HANDLES.map((at) => cubicBezierParamAtX(bezier, at));
+  const first = params[0];
+  const second = params[1];
+  if (first === undefined || second === undefined) return bezier;
 
-  const { weight1, weight2 } = weightsAt(held);
-  const norm = weight1 ** 2 + weight2 ** 2;
-  if (norm === 0) return bezier;
+  const a = weightsAt(first);
+  const b = weightsAt(second);
+  const determinant = a.weight1 * b.weight2 - a.weight2 * b.weight1;
+  // The two handles influence the control heights in the same proportion, so no pair of heights
+  // puts them anywhere but on one line together. Can't happen for distinct moments on a sane
+  // curve, but a degenerate one shouldn't produce infinities.
+  if (Math.abs(determinant) < 1e-9) return bezier;
 
-  // A point on that line, and the direction along it. Anything of the form base + step * along
-  // puts the dragged handle exactly where it was asked to go.
-  const wanted = targetY - held ** 3;
-  const base = { y1: (wanted * weight1) / norm, y2: (wanted * weight2) / norm };
-  const along = { y1: -weight2, y2: weight1 };
-
-  let numerator = 0;
-  let denominator = 0;
-  params.forEach((u, index) => {
-    if (index === dragged) return;
-    const other = weightsAt(u);
-    // How fast this handle moves as the curve slides along the line, and how far out it already
-    // is at the line's starting point.
-    const rate = other.weight1 * along.y1 + other.weight2 * along.y2;
-    const offset =
-      other.weight1 * base.y1 +
-      other.weight2 * base.y2 +
-      u ** 3 -
-      heightAt(bezier, u);
-    numerator += rate * offset;
-    denominator += rate * rate;
-  });
-  const step = denominator === 0 ? 0 : -numerator / denominator;
+  // What each handle is asking for, with the endpoints' fixed contribution taken out: the dragged
+  // one follows the pointer, the other stays exactly where it already is.
+  const wantedA =
+    (dragged === 0 ? targetY : heightAt(bezier, first)) - first ** 3;
+  const wantedB =
+    (dragged === 1 ? targetY : heightAt(bezier, second)) - second ** 3;
 
   return {
     ...bezier,
-    y1: clamp(base.y1 + step * along.y1, MIN_Y, MAX_Y),
-    y2: clamp(base.y2 + step * along.y2, MIN_Y, MAX_Y),
+    y1: clamp(
+      (wantedA * b.weight2 - a.weight2 * wantedB) / determinant,
+      MIN_Y,
+      MAX_Y,
+    ),
+    y2: clamp(
+      (a.weight1 * wantedB - wantedA * b.weight1) / determinant,
+      MIN_Y,
+      MAX_Y,
+    ),
   };
 }
 
@@ -182,18 +179,24 @@ function toSvgY(y: number): number {
   return PAD + (1 - y) * SIZE;
 }
 
+type EasingMode = "cubic" | "linear";
+
 export function EasingEditor() {
+  const [mode, setMode] = useState<EasingMode>("cubic");
   const [bezier, setBezier] = useState<CubicBezier>({
     x1: 0.4,
     y1: 0,
     x2: 0.2,
     y2: 1,
   });
+  // The interior points of a linear() function — its ends are 0 and 1 by definition. Starts as a
+  // straight line, so the first drag is the first shape rather than an edit of someone else's.
+  const [points, setPoints] = useState<number[]>([0.25, 0.5, 0.75]);
   const [duration, setDuration] = useState(DEFAULT_DURATION);
   const [progress, setProgress] = useState(0);
 
   const svgRef = useRef<SVGSVGElement>(null);
-  // Which handle is being dragged, if any — an index into HANDLE_POSITIONS.
+  // Which handle is being dragged, if any — an index into whichever set is on screen.
   const draggingRef = useRef<number | null>(null);
   // Read by the animation loop, which is mounted once and must not be torn down and restarted on
   // every tick of the duration slider — that would reset the loop mid-pass on every drag frame.
@@ -211,10 +214,47 @@ export function EasingEditor() {
     playbackRef.current = next;
   }
 
-  const css = useMemo(
-    () => formatEasingCss(bezier, duration),
-    [bezier, duration],
+  const isLinear = mode === "linear";
+  /** Where the handles sit in time — two fixed quarters for a cubic, evenly spread for linear. */
+  const handles = useMemo(
+    () =>
+      isLinear
+        ? points.map((_, index) => linearPointAt(index, points.length))
+        : [...CUBIC_HANDLES],
+    [isLinear, points],
   );
+  /** How far along the animation is at a given moment, under whichever function is active. */
+  const valueAt = useCallback(
+    (at: number) =>
+      isLinear ? linearProgress(points, at) : cubicBezierProgress(bezier, at),
+    [isLinear, points, bezier],
+  );
+  const timingFunction = isLinear
+    ? formatLinearEasing(points)
+    : formatCubicBezier(bezier);
+  const css = useMemo(
+    () => formatTimingCss(timingFunction, duration),
+    [timingFunction, duration],
+  );
+
+  /** Moves one handle, in whichever way the active function moves. */
+  function dragHandle(index: number, y: number) {
+    if (isLinear) {
+      // Nothing to solve: a point in a linear() function *is* the value at its own moment, and
+      // moving it moves nothing else. That is the trade against a cubic — more handles that each
+      // mean one thing, in exchange for corners between them.
+      setPoints((current) =>
+        current.map((value, at) => (at === index ? y : value)),
+      );
+      return;
+    }
+    setBezier((current) => reshapeAt(current, index, y));
+  }
+
+  /** Reads the curve off at a new number of points, so the shape survives the change. */
+  function setPointCount(count: number) {
+    setPoints((current) => resampleLinear(current, count));
+  }
 
   // Drives the preview off the same solver that shapes the curve, rather than handing the easing
   // to a CSS animation. Two reasons: a CSS keyframes rule would have to live in the consuming
@@ -260,11 +300,12 @@ export function EasingEditor() {
     };
   }
 
-  const eased = cubicBezierProgress(bezier, progress);
+  const eased = valueAt(progress);
   // Read off the control values rather than the animated position, so the note doesn't blink on
   // and off as the dot passes through the overshooting part of its own travel.
-  const overshoots =
-    bezier.y1 < 0 || bezier.y2 < 0 || bezier.y1 > 1 || bezier.y2 > 1;
+  const overshoots = isLinear
+    ? points.some((value) => value < 0 || value > 1)
+    : bezier.y1 < 0 || bezier.y2 < 0 || bezier.y1 > 1 || bezier.y2 > 1;
   const activePreset = EASING_PRESETS.find(
     (p) =>
       p.value.x1 === bezier.x1 &&
@@ -275,6 +316,31 @@ export function EasingEditor() {
 
   return (
     <ToolColumns className="p-4">
+      {/* Two timing functions with genuinely different trade-offs, not two ways to draw one. A
+          cubic is smooth everywhere and has room for exactly two independent handles; a linear
+          function has as many independent points as you like and a corner at each one. */}
+      <div className="clay-inset flex gap-1 rounded-lg bg-zinc-100 p-1 dark:bg-surface-elevated">
+        {(
+          [
+            { id: "cubic", label: "Cubic bezier" },
+            { id: "linear", label: "Linear" },
+          ] as const
+        ).map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            onClick={() => setMode(option.id)}
+            className={`flex-1 cursor-pointer rounded-md px-2.5 py-1 font-medium text-xs transition active:scale-95 ${
+              mode === option.id
+                ? "clay bg-white text-zinc-900 dark:bg-zinc-700 dark:text-white"
+                : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+
       <svg
         ref={svgRef}
         viewBox={`0 0 ${VIEW} ${VIEW}`}
@@ -283,7 +349,7 @@ export function EasingEditor() {
           const dragged = draggingRef.current;
           if (dragged === null) return;
           const { y } = pointFromEvent(e);
-          setBezier((current) => reshapeAt(current, dragged, y));
+          dragHandle(dragged, y);
         }}
         onPointerUp={(e) => {
           draggingRef.current = null;
@@ -338,11 +404,23 @@ export function EasingEditor() {
           strokeWidth={1.25}
         />
 
+        {/* Straight between the points, because that is exactly what linear() does — drawing it
+            smoothed would be a nicer picture of a different timing function. */}
         <path
-          d={`M ${toSvgX(0)} ${toSvgY(0)} C ${toSvgX(bezier.x1)} ${toSvgY(bezier.y1)}, ${toSvgX(bezier.x2)} ${toSvgY(bezier.y2)}, ${toSvgX(1)} ${toSvgY(1)}`}
+          d={
+            isLinear
+              ? `M ${toSvgX(0)} ${toSvgY(0)} ${points
+                  .map(
+                    (value, index) =>
+                      `L ${toSvgX(linearPointAt(index, points.length))} ${toSvgY(value)}`,
+                  )
+                  .join(" ")} L ${toSvgX(1)} ${toSvgY(1)}`
+              : `M ${toSvgX(0)} ${toSvgY(0)} C ${toSvgX(bezier.x1)} ${toSvgY(bezier.y1)}, ${toSvgX(bezier.x2)} ${toSvgY(bezier.y2)}, ${toSvgX(1)} ${toSvgY(1)}`
+          }
           className="fill-none stroke-brand-500"
           strokeWidth={2.5}
           strokeLinecap="round"
+          strokeLinejoin="round"
         />
 
         {/* Where the animation currently sits, on the curve itself — the link between the shape
@@ -354,16 +432,15 @@ export function EasingEditor() {
           className="fill-brand-600"
         />
 
-        {/* Grab points at fixed moments, sitting wherever the curve is at that moment. The
-            control points they stand in for are still what gets written to the CSS, but they are
-            no longer something to aim at: a control point sits off the curve, on the end of a
-            line, at a position most of a cubic's users have no intuition for — and dragging one
-            to the far end of its range put it outside the canvas entirely. */}
-        {HANDLE_POSITIONS.map((at, index) => (
+        {/* Grab points at fixed moments, sitting wherever the curve is at that moment. For a
+            cubic these stand in for control points, which sit off the curve on the end of a line
+            at a position most of a cubic's users have no intuition for. For a linear function
+            they are the function. */}
+        {handles.map((at, index) => (
           <circle
             key={at}
             cx={toSvgX(at)}
-            cy={toSvgY(cubicBezierProgress(bezier, at))}
+            cy={toSvgY(valueAt(at))}
             r={HANDLE_RADIUS}
             // Vertical only, and the cursor says so before the drag proves it.
             className="cursor-ns-resize fill-white stroke-brand-500 dark:fill-zinc-800"
@@ -376,8 +453,9 @@ export function EasingEditor() {
         ))}
       </svg>
       <p className="-mt-2 text-[11px] text-zinc-500">
-        Drag a handle up or down to set how far along the animation is at that
-        moment.
+        {isLinear
+          ? "Drag a point up or down. Each one moves on its own."
+          : "Drag a handle up or down. A cubic has room for two that move independently."}
       </p>
 
       {/* The same easing applied to motion. A curve you can only read as a shape doesn't tell you
@@ -436,31 +514,62 @@ export function EasingEditor() {
         onChange={handleDurationChange}
       />
 
-      <div className="flex flex-col gap-1.5">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-          Presets
-        </span>
-        <div className="flex flex-wrap gap-1.5">
-          {EASING_PRESETS.map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              onClick={() => setBezier(preset.value)}
-              className={`cursor-pointer rounded-md border px-2.5 py-1 text-[11px] font-medium transition active:scale-95 ${
-                activePreset?.id === preset.id
-                  ? "border-brand-500 text-brand-600 dark:text-brand-500"
-                  : "border-black/10 text-zinc-600 hover:bg-zinc-100 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-surface-elevated"
-              }`}
-            >
-              {preset.label}
-            </button>
-          ))}
+      {isLinear ? (
+        <div className="flex flex-col gap-1.5">
+          <span className="font-medium text-[11px] text-zinc-500 uppercase tracking-wide">
+            Points
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {Array.from(
+              { length: LINEAR_MAX_POINTS },
+              (_, index) => index + 1,
+            ).map((count) => (
+              <button
+                key={count}
+                type="button"
+                onClick={() => setPointCount(count)}
+                className={`h-7 w-7 cursor-pointer rounded-md border font-medium text-[11px] transition active:scale-95 ${
+                  points.length === count
+                    ? "border-brand-500 text-brand-600 dark:text-brand-500"
+                    : "border-black/10 text-zinc-600 hover:bg-zinc-100 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-surface-elevated"
+                }`}
+              >
+                {count}
+              </button>
+            ))}
+          </div>
+          <span className="text-[11px] text-zinc-500">
+            Changing the count reads the curve off again rather than resetting
+            it.
+          </span>
         </div>
-      </div>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          <span className="font-medium text-[11px] text-zinc-500 uppercase tracking-wide">
+            Presets
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {EASING_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => setBezier(preset.value)}
+                className={`cursor-pointer rounded-md border px-2.5 py-1 text-[11px] font-medium transition active:scale-95 ${
+                  activePreset?.id === preset.id
+                    ? "border-brand-500 text-brand-600 dark:text-brand-500"
+                    : "border-black/10 text-zinc-600 hover:bg-zinc-100 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-surface-elevated"
+                }`}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="rounded-lg border border-black/10 px-3 py-2 dark:border-white/10">
-        <span className="font-mono text-[11px] text-zinc-700 dark:text-zinc-300">
-          {formatCubicBezier(bezier)}
+        <span className="break-all font-mono text-[11px] text-zinc-700 dark:text-zinc-300">
+          {timingFunction}
         </span>
       </div>
 

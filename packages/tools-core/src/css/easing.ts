@@ -58,14 +58,80 @@ export function formatCubicBezier(bezier: CubicBezier): string {
   return `cubic-bezier(${trim(bezier.x1)}, ${trim(bezier.y1)}, ${trim(bezier.x2)}, ${trim(bezier.y2)})`;
 }
 
+export function formatTimingCss(
+  timingFunction: string,
+  durationMs: number,
+): string {
+  return [
+    `transition-timing-function: ${timingFunction};`,
+    `transition-duration: ${durationMs}ms;`,
+  ].join("\n");
+}
+
 export function formatEasingCss(
   bezier: CubicBezier,
   durationMs: number,
 ): string {
-  return [
-    `transition-timing-function: ${formatCubicBezier(bezier)};`,
-    `transition-duration: ${durationMs}ms;`,
-  ].join("\n");
+  return formatTimingCss(formatCubicBezier(bezier), durationMs);
+}
+
+/**
+ * A linear() timing function, as the values it passes through between its endpoints.
+ *
+ * Stored as the interior points only, evenly spaced: the ends of an easing function are 0 and 1
+ * by definition, and letting them be edited would mean an animation that doesn't start where it
+ * starts or finish where it finishes.
+ *
+ * Where a cubic bezier has two free heights however many handles you put on it, this has as many
+ * as it has points, each answering for its own moment and nothing else. That is the whole reason
+ * to offer it alongside: it is the timing function you can actually draw.
+ */
+export const LINEAR_MAX_POINTS = 5;
+
+function linearStops(interior: number[]): number[] {
+  return [0, ...interior, 1];
+}
+
+/** Progress at elapsed time `t`, interpolating between the stops on either side of it. */
+export function linearProgress(interior: number[], t: number): number {
+  const stops = linearStops(interior);
+  const last = stops.length - 1;
+  if (t <= 0) return 0;
+  if (t >= 1) return 1;
+  const scaled = t * last;
+  const index = Math.min(last - 1, Math.floor(scaled));
+  const from = stops[index] as number;
+  const to = stops[index + 1] as number;
+  return from + (to - from) * (scaled - index);
+}
+
+/** Where the nth of `count` interior points sits in time. */
+export function linearPointAt(index: number, count: number): number {
+  return (index + 1) / (count + 1);
+}
+
+/**
+ * Reads a curve off at a different number of points, so changing the count reshapes nothing: the
+ * new points come from the curve that was already there.
+ */
+export function resampleLinear(interior: number[], count: number): number[] {
+  return Array.from({ length: count }, (_, index) =>
+    linearProgress(interior, linearPointAt(index, count)),
+  );
+}
+
+export function formatLinearEasing(interior: number[]): string {
+  const stops = linearStops(interior);
+  const last = stops.length - 1;
+  return `linear(${stops
+    .map((value, index) =>
+      // The ends need no position — 0% and 100% are where they are by definition — and saying so
+      // only makes the declaration longer.
+      index === 0 || index === last
+        ? trim(value)
+        : `${trim(value)} ${trim((index / last) * 100)}%`,
+    )
+    .join(", ")})`;
 }
 
 /** One axis of a cubic bezier whose endpoints are pinned at 0 and 1. */
