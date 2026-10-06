@@ -808,7 +808,7 @@ export function AppShell() {
    * been replaced rather than as having switched — the fade is what says it is the same panel
    * showing something else.
    */
-  function beginSlotChange(next: (ToolId | null)[]) {
+  function beginSlotChange(next: (ToolId | null)[], isReflow = false) {
     const changed = next.reduce<number[]>((indices, tool, index) => {
       if (tool !== slots[index]) indices.push(index);
       return indices;
@@ -817,8 +817,13 @@ export function AppShell() {
     setPending({
       next,
       changed,
+      // Which slots fade their card and header in as well as their contents. Normally only a
+      // slot that was an empty rail, since a slot merely changing tool keeps the panel it
+      // already has and blinking it would be wrong. A reflow is the exception: the panels
+      // themselves move between slots, so the one landing here is a different panel arriving,
+      // not this one changing its mind.
       arriving: changed.filter(
-        (index) => slots[index] === null && next[index] !== null,
+        (index) => next[index] !== null && (isReflow || slots[index] === null),
       ),
     });
   }
@@ -847,11 +852,24 @@ export function AppShell() {
   }
 
   /** Starts the panel fading. The slot is emptied by the effect below, once it has. */
+  /**
+   * Closes a panel and re-lays the row, rather than leaving a hole where it was.
+   *
+   * The row has a resting arrangement — spare slots spread around the open tools, a single spare
+   * to the right — and closing returns to it. So three panels become two with the space at the
+   * right-hand end, and two become one back in the middle, the space having opened on the left.
+   * Leaving the hole in place instead meant the row's shape depended on the order you happened to
+   * close things in, and a tool could end up stranded against one edge with a gap beside it.
+   *
+   * This is the one operation that moves panels between slots, which is why it reflows: filling a
+   * slot deliberately does not, so that clicking a rail puts the tool exactly where you clicked.
+   */
   function closePanel(index: number) {
     if (openCount <= 1 || pending) return;
-    const next = [...slots];
-    next[index] = null;
-    beginSlotChange(next);
+    const remaining = slots.filter(
+      (slot, at): slot is ToolId => slot !== null && at !== index,
+    );
+    beginSlotChange(spreadSlots(remaining, slots.length), true);
   }
 
   /**
