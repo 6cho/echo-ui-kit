@@ -365,7 +365,7 @@ export function ThemeTester({
           being told. */}
       <div className="flex flex-col gap-1.5">
         <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-          {`${ELEMENTS[element].label} · ${mode}`}
+          {`${mode} mode / ${ELEMENTS[element].label}`}
         </span>
         <div className="flex flex-col gap-1">
           {ELEMENTS[element].parts.map((part) => {
