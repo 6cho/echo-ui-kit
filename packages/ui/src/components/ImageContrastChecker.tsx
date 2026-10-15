@@ -309,9 +309,10 @@ export function ImageContrastChecker({
           Text color
         </span>
         <div className="flex flex-wrap gap-1.5">
-          {textColorOptions.map((hex) => (
+          {textColorOptions.map((hex, index) => (
             <button
-              key={hex}
+              // biome-ignore lint/suspicious/noArrayIndexKey: a segment is a position in the strip — the same hex can legitimately appear twice, and keying by it strands stale segments
+              key={index}
               type="button"
               onClick={() => setTextColor(hex)}
               title={hex}

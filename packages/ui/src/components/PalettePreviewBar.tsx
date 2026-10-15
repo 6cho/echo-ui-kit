@@ -34,9 +34,10 @@ export function PalettePreviewBar({
         // fit a 380px side panel, where thin slivers beat a bar that overflows.
         style={{ maxWidth: colors.length * SEGMENT_PX }}
       >
-        {colors.map((hex) => (
+        {colors.map((hex, index) => (
           <div
-            key={hex}
+            // biome-ignore lint/suspicious/noArrayIndexKey: a segment is a position in the strip — the same hex can legitimately appear twice, and keying by it strands stale segments
+            key={index}
             title={hex}
             className="min-w-0 flex-1"
             style={{ backgroundColor: hex }}

@@ -36,9 +36,10 @@ export function ColorStrip({
         className="flex h-7 overflow-hidden rounded-md border border-black/10 dark:border-white/10"
         style={{ maxWidth: colors.length * SEGMENT_PX }}
       >
-        {colors.map((hex) => (
+        {colors.map((hex, index) => (
           <button
-            key={hex}
+            // biome-ignore lint/suspicious/noArrayIndexKey: a segment is a position in the strip — the same hex can legitimately appear twice, and keying by it strands stale segments
+            key={index}
             type="button"
             onClick={() => onChange(hex)}
             title={hex}

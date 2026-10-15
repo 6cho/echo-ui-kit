@@ -137,9 +137,10 @@ export function ThemeMenu({
                 </span>
                 <span className="flex h-3.5 w-full overflow-hidden rounded-full border border-black/10 dark:border-white/10">
                   {hasPalette ? (
-                    preview.map((hex) => (
+                    preview.map((hex, index) => (
                       <span
-                        key={hex}
+                        // biome-ignore lint/suspicious/noArrayIndexKey: a segment is a position in the strip — the same hex can legitimately appear twice, and keying by it strands stale segments
+                        key={index}
                         className={`min-w-0 flex-1 transition ${
                           isPaletteApplied ? "" : "grayscale"
                         }`}

@@ -14,7 +14,7 @@ import {
   toHsl,
   toOklch,
 } from "@echo-ui-kit/tools-core";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { extractPaletteFromImageFile } from "../lib/imagePalette";
 import type { SavedPalette, WorkingPalette } from "../types/palette";
 import { ColorScaleGrid } from "./ColorScaleGrid";
@@ -154,19 +154,90 @@ function fullColumnScale(base: string): ColumnScale {
   }
 }
 
+/**
+ * A selected shade, named by where it sits rather than by what colour it currently is: the 700 of
+ * the second column is "1:700" whatever that column's base happens to be right now.
+ *
+ * Positions rather than colours because a position is what someone actually picks, and because a
+ * colour is not a stable name for one. At the extremes of lightness several steps of a scale clamp
+ * to the same hex — at a black base, 500 through 900 are all #000000 — so a selection kept as
+ * colours could not tell those steps apart. Three picks became one colour, which then followed the
+ * base back up as one shade; React keyed the preview strip's segments by that colour and stranded
+ * old ones on every tick; and the grid needed a whole scheme for deciding which of several
+ * identical cells got to show the tick.
+ */
+type Position = string;
+
+function positionOf(column: number, step: number): Position {
+  return `${column}:${step}`;
+}
+
+function parsePosition(position: Position): { column: number; step: number } {
+  const [column, step] = position.split(":").map(Number);
+  return { column: column ?? 0, step: step ?? 0 };
+}
+
+/** The colour at a position, under the scales as they are right now. */
+function hexAtPosition(
+  position: Position,
+  columnScales: ColumnScale[],
+): string | null {
+  const { column, step } = parsePosition(position);
+  return (
+    columnScales[column]?.find((entry) => entry.step === step)?.hex ?? null
+  );
+}
+
 /** Auto-selects the role-based shades for each column's full scale, per roleStepsForTier. */
-function principledSeedColors(columnScales: ColumnScale[]): string[] {
+function principledSeedPositions(columnScales: ColumnScale[]): Position[] {
+  // Still skips a shade that would repeat a colour already seeded — a near-black base can make
+  // a column's 700 and 900 identical, and a palette that opens with the same colour twice looks
+  // like a mistake. This only shapes the starting point; anything picked by hand afterwards is
+  // kept exactly as picked.
   const seen = new Set<string>();
-  const result: string[] = [];
+  const result: Position[] = [];
   columnScales.forEach((scale, tier) => {
     for (const step of roleStepsForTier(tier)) {
       const entry = scale.find((s) => s.step === step);
       if (entry && !seen.has(entry.hex)) {
         seen.add(entry.hex);
-        result.push(entry.hex);
+        result.push(positionOf(tier, step));
       }
     }
   });
+  return result;
+}
+
+/**
+ * Turns colours back into positions, for loading a palette that was saved as colours.
+ *
+ * Each colour claims the first position that has it and hasn't been claimed yet, so a saved
+ * palette that contains the same colour twice comes back as two positions rather than one.
+ */
+function positionsForColors(
+  colors: string[],
+  columnScales: ColumnScale[],
+): Position[] {
+  const claimed = new Set<Position>();
+  const result: Position[] = [];
+  for (const hex of colors) {
+    const needle = hex.toLowerCase();
+    outer: for (const [column, scale] of columnScales.entries()) {
+      // The base tone first: a column's 500 *is* its base colour, so when a colour appears at
+      // several steps that is the one it most likely meant.
+      const ordered = [...scale].sort((a, b) =>
+        a.step === 500 ? -1 : b.step === 500 ? 1 : 0,
+      );
+      for (const entry of ordered) {
+        const position = positionOf(column, entry.step);
+        if (entry.hex.toLowerCase() === needle && !claimed.has(position)) {
+          claimed.add(position);
+          result.push(position);
+          break outer;
+        }
+      }
+    }
+  }
   return result;
 }
 
@@ -184,69 +255,6 @@ function principledSeedColors(columnScales: ColumnScale[]): string[] {
  * that wasn't in any scale sorted ahead of the base. Unplaceable colours now sort last, which is
  * the only honest answer.
  */
-/** Where a colour sits in a set of scales, if it is one of their steps. */
-function locate(
-  hex: string,
-  scales: ColumnScale[],
-): { column: number; step: number } | null {
-  const needle = hex.toLowerCase();
-  for (const [column, scale] of scales.entries()) {
-    const found = scale.find((entry) => entry.hex.toLowerCase() === needle);
-    if (found) return { column, step: found.step };
-  }
-  return null;
-}
-
-/** The colour at a position in a set of scales. */
-function hexAt(
-  at: { column: number; step: number },
-  scales: ColumnScale[],
-): string | null {
-  return (
-    scales[at.column]?.find((entry) => entry.step === at.step)?.hex ?? null
-  );
-}
-
-/**
- * Follows a selection from one set of scales to the next.
- *
- * The selection is stored as colours, but what someone picked was a *position* — the 700 of the
- * second column, say. Move the base colour and every stored hex names a colour that no longer
- * exists: the grid stops ticking anything, the preview shows colours that are not in the palette,
- * and saving keeps them. Anything that can't be placed is left alone rather than dropped, since
- * an image palette and a restored one both contain colours these scales never generated.
- */
-function followScales(
-  hexes: string[],
-  from: ColumnScale[],
-  to: ColumnScale[],
-): string[] {
-  let changed = false;
-  const next = hexes.map((hex) => {
-    const at = locate(hex, from);
-    const moved = at ? hexAt(at, to) : null;
-    if (moved && moved !== hex) {
-      changed = true;
-      return moved;
-    }
-    return hex;
-  });
-  // Same array back when nothing moved, so this can run on every scale change without forcing a
-  // render of everything downstream of the selection.
-  return changed ? next : hexes;
-}
-
-function paletteOrder(columnScales: ColumnScale[]): Map<string, number> {
-  const order = new Map<string, number>();
-  columnScales.forEach((scale, column) => {
-    scale.forEach((step, tier) => {
-      const key = step.hex.toLowerCase();
-      if (!order.has(key)) order.set(key, column * 1000 + tier);
-    });
-  });
-  return order;
-}
-
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
     <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-500">
@@ -589,15 +597,22 @@ export function PaletteGenerator({
   // on it, it gets an explicit entry and freezes as your own custom set from then on, independent
   // of further base-color or harmony changes — switching away and back restores exactly that set.
   const [selectedByHarmony, setSelectedByHarmony] = useState<
-    Partial<Record<HarmonyType, string[]>>
+    Partial<Record<HarmonyType, Position[]>>
   >({});
   // Image mode's equivalent of selectedByHarmony — there's no HarmonyType to key it by, so it's
   // just "customized or not" for whatever image is currently loaded. Reset to null (falls back
   // to the principled seed) whenever a new image is processed, same reasoning as switching
   // harmony types: a customization tuned for the old color set doesn't carry over meaningfully.
   const [imageSelectedColors, setImageSelectedColors] = useState<
-    string[] | null
+    Position[] | null
   >(null);
+  // A saved palette's colours, waiting for the scales they belong to. Loading sets the base
+  // colour and harmony in the same breath, but the scales are derived from those, so they don't
+  // exist until the next render — and colours can only be turned into positions against them.
+  const [pendingColors, setPendingColors] = useState<{
+    harmony: HarmonyType;
+    colors: string[];
+  } | null>(null);
 
   const isCustomized =
     paletteSource === "image"
@@ -609,40 +624,15 @@ export function PaletteGenerator({
   // fullColumnScale's comment for why that matters).
   const columnScales = useMemo(() => columns.map(fullColumnScale), [columns]);
 
-  // Keeps the selection pointing at the same positions when the scales underneath it are rebuilt,
-  // which happens on every tick of the hue, saturation and lightness sliders.
-  // A ref rather than state: this is how the effect remembers what it last ran against, and
-  // depending on it would make the effect depend on something it writes.
-  const previousScales = useRef(columnScales);
-  useEffect(() => {
-    const from = previousScales.current;
-    previousScales.current = columnScales;
-    if (from === columnScales) return;
-    setSelectedByHarmony((current) => {
-      let changed = false;
-      const next: Partial<Record<HarmonyType, string[]>> = {};
-      for (const [key, hexes] of Object.entries(current)) {
-        if (!hexes) continue;
-        const moved = followScales(hexes, from, columnScales);
-        if (moved !== hexes) changed = true;
-        next[key as HarmonyType] = moved;
-      }
-      return changed ? next : current;
-    });
-    setImageSelectedColors((current) =>
-      current ? followScales(current, from, columnScales) : current,
-    );
-  }, [columnScales]);
-
-  // Memoized specifically so its identity is stable between renders. principledSeedColors builds
+  // Memoized specifically so its identity is stable between renders. principledSeedPositions builds
   // a brand new array every call, so computing this inline would hand the effect below a
   // different array each render — it would fire, set state in the parent, re-render, and fire
   // again forever.
-  const selectedColors = useMemo(
+  const selectedPositions = useMemo(
     () =>
       paletteSource === "image"
-        ? (imageSelectedColors ?? principledSeedColors(columnScales))
-        : (selectedByHarmony[harmony] ?? principledSeedColors(columnScales)),
+        ? (imageSelectedColors ?? principledSeedPositions(columnScales))
+        : (selectedByHarmony[harmony] ?? principledSeedPositions(columnScales)),
     [
       paletteSource,
       imageSelectedColors,
@@ -652,12 +642,20 @@ export function PaletteGenerator({
     ],
   );
 
-  const displaySelectedColors = useMemo(() => {
-    const order = paletteOrder(columnScales);
-    const place = (hex: string) =>
-      order.get(hex.toLowerCase()) ?? Number.MAX_SAFE_INTEGER;
-    return [...selectedColors].sort((a, b) => place(a) - place(b));
-  }, [selectedColors, columnScales]);
+  // Ordered by where they sit — column first, then light to dark within it — so the palette
+  // reads as the scheme rather than in the order things happened to be clicked. A position that
+  // no longer exists (a column a harmony change took away) simply has no colour and drops out.
+  const displaySelectedColors = useMemo(
+    () =>
+      [...selectedPositions]
+        .map((position) => ({
+          ...parsePosition(position),
+          hex: hexAtPosition(position, columnScales),
+        }))
+        .sort((a, b) => a.column - b.column || a.step - b.step)
+        .flatMap((entry) => (entry.hex ? [entry.hex] : [])),
+    [selectedPositions, columnScales],
+  );
 
   // The complete description of what's currently being built, in the same shape saving produces —
   // so the parent can hand it straight to onSave, stash it as recent work, or read just its
@@ -695,7 +693,10 @@ export function PaletteGenerator({
     if (paletteToLoad.harmony === "image") {
       setPaletteSource("image");
       setImageColors(paletteToLoad.colors);
-      setImageSelectedColors(paletteToLoad.colors);
+      // The saved colours become the columns, so each one is exactly its column's base tone.
+      setImageSelectedColors(
+        paletteToLoad.colors.map((_, column) => positionOf(column, 500)),
+      );
       setImageHslAdjustment(null);
       setImagePreviewUrl((prev) => {
         if (prev) URL.revokeObjectURL(prev);
@@ -708,35 +709,59 @@ export function PaletteGenerator({
       // Replaces the whole map rather than merging: loading a saved palette is a fresh start, and
       // leaving other harmonies' stale customizations around is exactly the bug that made "new
       // palette from a color" feel like it hadn't done anything.
-      setSelectedByHarmony({ [paletteToLoad.harmony]: paletteToLoad.colors });
+      setSelectedByHarmony({});
+      setPendingColors({
+        harmony: paletteToLoad.harmony,
+        colors: paletteToLoad.colors,
+      });
     }
     setFocusedColor(null);
     onPaletteLoaded?.();
   }, [paletteToLoad, onPaletteLoaded]);
 
-  function toggleColor(hex: string) {
+  // Resolves a loaded palette's colours once the scales they were saved against exist.
+  useEffect(() => {
+    if (!pendingColors || harmony !== pendingColors.harmony) return;
+    setSelectedByHarmony({
+      [pendingColors.harmony]: positionsForColors(
+        pendingColors.colors,
+        columnScales,
+      ),
+    });
+    setPendingColors(null);
+  }, [pendingColors, harmony, columnScales]);
+
+  /**
+   * Toggles a shade in or out of the palette.
+   *
+   * The grid knows exactly which cell was clicked and says so; the colour wheel only knows a
+   * colour, which is always a column's base tone, so it is placed there.
+   */
+  function toggleColor(hex: string, clicked?: Position) {
+    const position = clicked ?? positionsForColors([hex], columnScales)[0];
+    if (!position) return;
     setFocusedColor(hex);
     onColorFocused?.(hex);
     if (paletteSource === "image") {
       setImageSelectedColors((prev) => {
-        const current = prev ?? principledSeedColors(columnScales);
-        const isSelected = current.includes(hex);
+        const current = prev ?? principledSeedPositions(columnScales);
+        const isSelected = current.includes(position);
         if (!isSelected && current.length >= MAX_SELECTED_COLORS) return prev;
         return isSelected
-          ? current.filter((c) => c !== hex)
-          : [...current, hex];
+          ? current.filter((c) => c !== position)
+          : [...current, position];
       });
       return;
     }
     setSelectedByHarmony((prev) => {
-      const current = prev[harmony] ?? principledSeedColors(columnScales);
-      const isSelected = current.includes(hex);
+      const current = prev[harmony] ?? principledSeedPositions(columnScales);
+      const isSelected = current.includes(position);
       // Only the "add" direction is capped — removing a color always has to work, including
       // when already at the cap, otherwise there'd be no way to free up a slot.
       if (!isSelected && current.length >= MAX_SELECTED_COLORS) return prev;
       const next = isSelected
-        ? current.filter((c) => c !== hex)
-        : [...current, hex];
+        ? current.filter((c) => c !== position)
+        : [...current, position];
       return { ...prev, [harmony]: next };
     });
   }
@@ -1106,7 +1131,7 @@ export function PaletteGenerator({
                     level. min-h keeps the header from shifting the grid up and down as the
                     button appears and disappears with isCustomized. */}
                 <div className="flex min-h-6 items-center justify-between gap-2">
-                  <SectionLabel>{`Palette (${selectedColors.length}/${MAX_SELECTED_COLORS})`}</SectionLabel>
+                  <SectionLabel>{`Palette (${selectedPositions.length}/${MAX_SELECTED_COLORS})`}</SectionLabel>
                   {isCustomized && (
                     <button
                       type="button"
@@ -1120,9 +1145,9 @@ export function PaletteGenerator({
                 </div>
                 <ColorScaleGrid
                   baseColors={columns}
-                  selectedColors={selectedColors}
+                  selectedPositions={selectedPositions}
                   onToggleColor={toggleColor}
-                  canSelectMore={selectedColors.length < MAX_SELECTED_COLORS}
+                  canSelectMore={selectedPositions.length < MAX_SELECTED_COLORS}
                 />
               </div>
             </>

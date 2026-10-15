@@ -152,9 +152,10 @@ export function DriftView({
         </div>
         {reference && (
           <div className="flex h-6 overflow-hidden rounded-md border border-black/10 dark:border-white/10">
-            {reference.colors.map((hex) => (
+            {reference.colors.map((hex, index) => (
               <div
-                key={hex}
+                // biome-ignore lint/suspicious/noArrayIndexKey: a segment is a position in the strip — the same hex can legitimately appear twice, and keying by it strands stale segments
+                key={index}
                 title={hex}
                 className="min-w-0 flex-1"
                 style={{ backgroundColor: hex }}

@@ -67,9 +67,10 @@ export function FilterPlayground({
         ) : (
           <div style={{ filter }}>
             <div className="flex h-24">
-              {swatches.map((hex) => (
+              {swatches.map((hex, index) => (
                 <div
-                  key={hex}
+                  // biome-ignore lint/suspicious/noArrayIndexKey: a segment is a position in the strip — the same hex can legitimately appear twice, and keying by it strands stale segments
+                  key={index}
                   className="min-w-0 flex-1"
                   style={{ backgroundColor: hex }}
                 />
