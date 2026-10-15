@@ -19,14 +19,16 @@ import { ToolColumns } from "./ToolColumns";
 
 type Mode = "light" | "dark";
 
-// One role row: two lines of text plus its padding and border, and the gap between rows. Used to
-// cut the list off on a row boundary rather than through one.
-const ROLE_ROW_HEIGHT = 46;
-const ROLE_ROW_GAP = 4;
-
 type PreviewElement = "page" | "card" | "primaryButton" | "secondaryButton";
 
 type Property = "Background" | "Border" | "Primary text" | "Secondary text";
+
+const PROPERTIES: Property[] = [
+  "Background",
+  "Border",
+  "Primary text",
+  "Secondary text",
+];
 
 /**
  * What paints each part of the preview, in one vocabulary for all of them.
@@ -306,15 +308,6 @@ export function ThemeTester({
     setMode(nextMode);
   }
 
-  /** Picking from the full list moves the selected element to one the role actually paints. */
-  function selectRole(next: ThemeRoleId) {
-    setRole(next);
-    if (!ELEMENTS[element].parts.some((part) => part.role === next)) {
-      const owner = elementsUsing(next)[0];
-      if (owner) setElement(owner);
-    }
-  }
-
   function assign(hex: string) {
     setPair((current) => ({
       ...current,
@@ -329,7 +322,6 @@ export function ThemeTester({
       "#000000",
     ]),
   ];
-  const activeRole = THEME_ROLES.find((r) => r.id === role);
 
   return (
     <ToolColumns className="p-4">
@@ -369,18 +361,38 @@ export function ThemeTester({
           {`${mode} mode / ${ELEMENTS[element].label}`}
         </span>
         <div className="flex flex-col gap-1">
-          {ELEMENTS[element].parts.map((part) => {
+          {PROPERTIES.map((property) => {
+            const part = ELEMENTS[element].parts.find(
+              (candidate) => candidate.property === property,
+            );
+            // Always all four, in the same order, so every element reads the same way. One that
+            // doesn't have a property says so rather than leaving a gap the eye has to account for.
+            if (!part) {
+              return (
+                <div
+                  key={property}
+                  className="flex items-center gap-2 rounded-md border border-black/10 border-dashed px-2 py-1.5 dark:border-white/10"
+                >
+                  <span className="h-5 w-5 shrink-0 rounded-md border border-black/10 border-dashed dark:border-white/10" />
+                  <span className="flex min-w-0 flex-col">
+                    <span className="text-xs font-medium text-zinc-400 dark:text-zinc-500">
+                      {property}
+                    </span>
+                    <span className="truncate text-[11px] text-zinc-400 dark:text-zinc-600">
+                      {`The ${ELEMENTS[element].label.toLowerCase()} doesn't have one`}
+                    </span>
+                  </span>
+                </div>
+              );
+            }
             const hex = pair[mode][part.role];
             const isActive = part.role === role;
-            const roleLabel = THEME_ROLES.find(
-              (r) => r.id === part.role,
-            )?.label;
             const alsoOn = elementsUsing(part.role)
               .filter((other) => other !== element)
               .map((other) => ELEMENTS[other].label.toLowerCase());
             return (
               <button
-                key={`${part.property}-${part.role}`}
+                key={property}
                 type="button"
                 onClick={() => setRole(part.role)}
                 className={`flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1.5 text-left transition ${
@@ -395,12 +407,12 @@ export function ThemeTester({
                 />
                 <span className="flex min-w-0 flex-col">
                   <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                    {part.property}
+                    {property}
                   </span>
                   <span className="truncate text-[11px] text-zinc-500">
                     {alsoOn.length > 0
-                      ? `${roleLabel} · also on the ${alsoOn.join(", ")}`
-                      : roleLabel}
+                      ? `Also on the ${alsoOn.join(", ")}`
+                      : "Only here"}
                   </span>
                 </span>
                 <span className="ml-auto shrink-0 font-mono text-[11px] text-zinc-500">
@@ -425,51 +437,9 @@ export function ThemeTester({
         </div>
       )}
 
-      {/* Six rows and then it scrolls. The list is a way to reach a role, not the thing being
-          looked at — the previews above are — and at full height it pushed them off the top of a
-          panel. Sized from the rows rather than guessed so it lands on a boundary instead of
-          halfway through the seventh. */}
-      <div
-        className="flex flex-col gap-1 overflow-y-auto"
-        style={{ maxHeight: ROLE_ROW_HEIGHT * 6 + ROLE_ROW_GAP * 5 }}
-      >
-        {THEME_ROLES.map((definition) => {
-          const hex = pair[mode][definition.id];
-          const isActive = definition.id === role;
-          return (
-            <button
-              key={definition.id}
-              type="button"
-              onClick={() => selectRole(definition.id)}
-              className={`flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1.5 text-left transition ${
-                isActive
-                  ? "border-brand-500"
-                  : "border-black/10 hover:bg-zinc-100 dark:border-white/10 dark:hover:bg-surface-elevated"
-              }`}
-            >
-              <span
-                className="h-4 w-4 shrink-0 rounded-full border border-black/10 dark:border-white/10"
-                style={{ backgroundColor: hex }}
-              />
-              <span className="flex min-w-0 flex-col">
-                <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                  {definition.label}
-                </span>
-                <span className="truncate text-[11px] text-zinc-500">
-                  {definition.hint}
-                </span>
-              </span>
-              <span className="ml-auto shrink-0 font-mono text-[11px] text-zinc-500">
-                {hex}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
       <div className="flex items-end gap-2">
         <ColorStrip
-          label={`${activeRole?.label ?? "Role"} · ${mode}`}
+          label={`${mode} mode / ${ELEMENTS[element].label} / ${ELEMENTS[element].parts.find((part) => part.role === role)?.property ?? ""}`}
           colors={options}
           value={pair[mode][role]}
           onChange={assign}
