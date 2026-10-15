@@ -72,6 +72,15 @@ const HARMONY_TYPES: HarmonyType[] = [
 // at all) perceptible, which is exactly what every hue-based feature here depends on.
 const LOW_CHROMA_THRESHOLD = 0.02;
 
+/** No hue to speak of — black, white and the greys between. */
+function isGrayscale(hex: string): boolean {
+  try {
+    return toOklch(hex).c < LOW_CHROMA_THRESHOLD;
+  } catch {
+    return false;
+  }
+}
+
 const HARMONY_LABELS: Record<HarmonyType, string> = {
   monochromatic: "Monochromatic",
   analogous: "Analogous",
@@ -352,7 +361,21 @@ export function PaletteGenerator({
       console.error("Eyedropper failed", error);
     }
   }
-  const [harmony, setHarmony] = useState<HarmonyType>("analogous");
+  const [chosenHarmony, setChosenHarmony] = useState<HarmonyType>("analogous");
+  const isBaseGrayscale = useMemo(() => isGrayscale(baseColor), [baseColor]);
+  /**
+   * The harmony actually in use: whatever was chosen, unless the base has no hue.
+   *
+   * Every harmony but monochromatic is a rotation around the colour wheel, and a grey has no
+   * position on it — rotate one and you get the same grey, so a "triadic" grey palette is three
+   * copies of one ramp pretending to be a scheme. Monochromatic is the only honest choice there.
+   *
+   * Derived rather than written into state, so the choice survives the detour: take the
+   * saturation down to grey and back up and the harmony you had comes back with it.
+   */
+  const harmony: HarmonyType = isBaseGrayscale
+    ? "monochromatic"
+    : chosenHarmony;
   const [saved, setSaved] = useState(false);
   const [colorSaved, setColorSaved] = useState(false);
 
@@ -454,14 +477,6 @@ export function PaletteGenerator({
       return [];
     }
   }, [baseColor, harmony]);
-
-  const isBaseGrayscale = useMemo(() => {
-    try {
-      return toOklch(baseColor).c < LOW_CHROMA_THRESHOLD;
-    } catch {
-      return false;
-    }
-  }, [baseColor]);
 
   // These sliders don't hold their own state — they read the base color's current H/S/L and,
   // on drag, write a new base color back with just that one component changed. Nothing else in
@@ -705,13 +720,16 @@ export function PaletteGenerator({
     } else {
       setPaletteSource("harmony");
       setBaseColor(paletteToLoad.baseColor);
-      setHarmony(paletteToLoad.harmony);
+      setChosenHarmony(paletteToLoad.harmony);
+      const loadedHarmony = isGrayscale(paletteToLoad.baseColor)
+        ? "monochromatic"
+        : paletteToLoad.harmony;
       // Replaces the whole map rather than merging: loading a saved palette is a fresh start, and
       // leaving other harmonies' stale customizations around is exactly the bug that made "new
       // palette from a color" feel like it hadn't done anything.
       setSelectedByHarmony({});
       setPendingColors({
-        harmony: paletteToLoad.harmony,
+        harmony: loadedHarmony,
         colors: paletteToLoad.colors,
       });
     }
@@ -784,9 +802,11 @@ export function PaletteGenerator({
   // time — a plain random pick has a 1-in-13 chance of silently "re-rolling" the same value,
   // which reads as a broken button rather than a randomizer that just happened to repeat.
   function randomizeHarmony() {
-    const choices = HARMONY_TYPES.filter((type) => type !== harmony);
+    const choices = HARMONY_TYPES.filter((type) => type !== chosenHarmony);
     const pool = choices.length > 0 ? choices : HARMONY_TYPES;
-    setHarmony(pool[Math.floor(Math.random() * pool.length)] as HarmonyType);
+    setChosenHarmony(
+      pool[Math.floor(Math.random() * pool.length)] as HarmonyType,
+    );
   }
 
   function savePalette() {
@@ -957,9 +977,9 @@ export function PaletteGenerator({
 
           {paletteSource === "harmony" && isBaseGrayscale && (
             <p className="-mt-3 text-[11px] text-amber-600 dark:text-amber-500">
-              This color has little to no saturation, so hue-based tools here
-              (harmony, color wheel) won't have much to work with — most colors
-              they generate will look close to gray too.
+              This color has little to no saturation, so it has no hue for other
+              harmonies to work from — the harmony is held at monochromatic
+              until you add some color back.
             </p>
           )}
 
@@ -1013,8 +1033,16 @@ export function PaletteGenerator({
                 <div className="relative flex-1">
                   <select
                     value={harmony}
-                    onChange={(e) => setHarmony(e.target.value as HarmonyType)}
-                    className="clay-inset h-full w-full cursor-pointer appearance-none rounded-lg bg-zinc-100 py-1.5 pr-8 pl-2.5 text-xs font-medium text-zinc-900 outline-none focus:border-brand-500 dark:border-white/10 dark:bg-surface-elevated dark:text-zinc-100"
+                    onChange={(e) =>
+                      setChosenHarmony(e.target.value as HarmonyType)
+                    }
+                    disabled={isBaseGrayscale}
+                    title={
+                      isBaseGrayscale
+                        ? "A gray has no hue to build other harmonies from"
+                        : undefined
+                    }
+                    className="clay-inset h-full w-full cursor-pointer appearance-none disabled:cursor-not-allowed disabled:opacity-60 rounded-lg bg-zinc-100 py-1.5 pr-8 pl-2.5 text-xs font-medium text-zinc-900 outline-none focus:border-brand-500 dark:border-white/10 dark:bg-surface-elevated dark:text-zinc-100"
                   >
                     {HARMONY_TYPES.map((type) => (
                       <option key={type} value={type}>
@@ -1029,8 +1057,13 @@ export function PaletteGenerator({
                 <button
                   type="button"
                   onClick={randomizeHarmony}
-                  title="Pick a random harmony"
-                  className="flex shrink-0 cursor-pointer items-center justify-center rounded-lg border border-black/10 px-2.5 text-zinc-600 transition hover:bg-zinc-100 active:scale-95 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-surface-elevated"
+                  disabled={isBaseGrayscale}
+                  title={
+                    isBaseGrayscale
+                      ? "A gray has no hue to build other harmonies from"
+                      : "Pick a random harmony"
+                  }
+                  className="flex shrink-0 cursor-pointer items-center disabled:cursor-not-allowed disabled:opacity-40 justify-center rounded-lg border border-black/10 px-2.5 text-zinc-600 transition hover:bg-zinc-100 active:scale-95 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-surface-elevated"
                 >
                   <svg
                     viewBox="0 0 24 24"
