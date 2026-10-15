@@ -24,24 +24,81 @@ type Mode = "light" | "dark";
 const ROLE_ROW_HEIGHT = 46;
 const ROLE_ROW_GAP = 4;
 
+type PreviewElement =
+  | "page"
+  | "card"
+  | "heading"
+  | "copy"
+  | "primaryButton"
+  | "secondaryButton";
+
+type Property = "Background" | "Border" | "Text";
+
+/**
+ * What paints each part of the preview.
+ *
+ * Many-to-many in both directions, which is the whole reason this exists: a button has a fill and
+ * a label, a card has a fill and an edge, and the edge is the same role the secondary button's
+ * outline uses. Mapping one element to one role — which is what clicking used to do — could only
+ * ever reach one of the colours you were looking at, and needed invented click targets for the
+ * rest.
+ */
+const ELEMENTS: Record<
+  PreviewElement,
+  { label: string; parts: { property: Property; role: ThemeRoleId }[] }
+> = {
+  page: {
+    label: "Page",
+    parts: [{ property: "Background", role: "background" }],
+  },
+  card: {
+    label: "Card",
+    parts: [
+      { property: "Background", role: "surface" },
+      { property: "Border", role: "border" },
+    ],
+  },
+  heading: {
+    label: "Heading",
+    parts: [{ property: "Text", role: "text" }],
+  },
+  copy: {
+    label: "Secondary copy",
+    parts: [{ property: "Text", role: "muted" }],
+  },
+  primaryButton: {
+    label: "Primary button",
+    parts: [
+      { property: "Background", role: "primary" },
+      { property: "Text", role: "onPrimary" },
+    ],
+  },
+  secondaryButton: {
+    label: "Secondary button",
+    parts: [
+      { property: "Border", role: "border" },
+      { property: "Text", role: "text" },
+    ],
+  },
+};
+
+/** Every element a role paints, so editing it can say what else will change. */
+function elementsUsing(role: ThemeRoleId): PreviewElement[] {
+  return (Object.keys(ELEMENTS) as PreviewElement[]).filter((element) =>
+    ELEMENTS[element].parts.some((part) => part.role === role),
+  );
+}
+
 /**
  * A miniature interface painted entirely from a mapping, and the quickest way to edit one.
  *
- * Every part of it selects the role that paints it, so a colour that looks wrong is fixed by
- * clicking the thing that looks wrong rather than by working out which of seven names governs it.
- * Clicking into a mode's preview switches to editing that mode as well, since wanting to change
- * something you are looking at in dark mode is not usually a wish to change it in light.
+ * Every part of it selects itself as the thing being edited, in the mode it was clicked in —
+ * wanting to change something you are looking at in dark mode is rarely a wish to change it in
+ * light. What happens next is the element panel's job: it lists every colour that element uses.
  *
  * The containers' hit areas are siblings of their contents rather than wrappers around them —
  * stretched behind, with the contents sitting above. A button inside a button is not valid HTML
  * and the inner one stops being reachable, so the card can't simply wrap the heading it holds.
- *
- * Six of the seven roles are reachable here. The seventh, the text on the accent, is the Primary
- * button's own label, and that rule is why it can't have its own target inside it. It was briefly
- * given a chip of its own next to the button, which was a second identical accent-coloured
- * button that existed only to be clicked — an element invented to be a hit area, not an interface
- * anyone would draw. It is edited from the list instead, where it already has a name and a
- * description.
  *
  * Abstract on purpose: enough shape to judge the colours against each other, not a mockup of any
  * particular screen.
@@ -50,30 +107,32 @@ function Preview({
   mapping,
   label,
   mode,
-  activeRole,
+  activeElement,
   activeMode,
   onSelect,
 }: {
   mapping: ThemeMapping;
   label: string;
   mode: Mode;
-  activeRole: ThemeRoleId;
+  activeElement: PreviewElement;
   activeMode: Mode;
-  onSelect: (role: ThemeRoleId, mode: Mode) => void;
+  onSelect: (element: PreviewElement, mode: Mode) => void;
 }) {
-  const isEditing = (role: ThemeRoleId) =>
-    activeMode === mode && activeRole === role;
-  /** A ring on whatever is currently being edited, so the two views stay tied together. */
-  const ring = (role: ThemeRoleId) =>
-    isEditing(role) ? "ring-2 ring-brand-500 ring-offset-1" : "";
+  /** A ring on whatever is being edited, in the view it is being edited in. */
+  const ring = (element: PreviewElement) =>
+    activeMode === mode && activeElement === element
+      ? "ring-2 ring-brand-500 ring-offset-1"
+      : "";
+  const title = (element: PreviewElement) =>
+    `Customise the ${ELEMENTS[element].label.toLowerCase()} in ${mode} mode`;
 
-  const Area = ({ paints, title }: { paints: ThemeRoleId; title: string }) => (
+  const Area = ({ element }: { element: PreviewElement }) => (
     <button
       type="button"
-      onClick={() => onSelect(paints, mode)}
-      title={title}
-      aria-label={title}
-      className={`absolute inset-0 cursor-pointer rounded-md ${ring(paints)}`}
+      onClick={() => onSelect(element, mode)}
+      title={title(element)}
+      aria-label={title(element)}
+      className={`absolute inset-0 cursor-pointer rounded-md ${ring(element)}`}
     />
   );
 
@@ -86,7 +145,7 @@ function Preview({
         className="relative flex flex-col gap-2 rounded-lg border border-black/10 p-3 dark:border-white/10"
         style={{ backgroundColor: mapping.background }}
       >
-        <Area paints="background" title={`Edit the ${mode} background`} />
+        <Area element="page" />
         <div
           className="relative flex flex-col gap-2 rounded-md border p-2.5"
           style={{
@@ -94,21 +153,21 @@ function Preview({
             borderColor: mapping.border,
           }}
         >
-          <Area paints="surface" title={`Edit the ${mode} surface`} />
+          <Area element="card" />
           <button
             type="button"
-            onClick={() => onSelect("text", mode)}
-            title={`Edit the ${mode} text`}
-            className={`relative cursor-pointer rounded text-left text-xs font-semibold ${ring("text")}`}
+            onClick={() => onSelect("heading", mode)}
+            title={title("heading")}
+            className={`relative cursor-pointer rounded text-left text-xs font-semibold ${ring("heading")}`}
             style={{ color: mapping.text }}
           >
             Card heading
           </button>
           <button
             type="button"
-            onClick={() => onSelect("muted", mode)}
-            title={`Edit the ${mode} muted text`}
-            className={`relative cursor-pointer rounded text-left text-[11px] ${ring("muted")}`}
+            onClick={() => onSelect("copy", mode)}
+            title={title("copy")}
+            className={`relative cursor-pointer rounded text-left text-[11px] ${ring("copy")}`}
             style={{ color: mapping.muted }}
           >
             Secondary copy that sits underneath it.
@@ -116,9 +175,9 @@ function Preview({
           <div className="relative flex items-center gap-1.5 pt-0.5">
             <button
               type="button"
-              onClick={() => onSelect("primary", mode)}
-              title={`Edit the ${mode} primary`}
-              className={`cursor-pointer rounded px-2 py-1 text-[11px] font-medium ${ring("primary")}`}
+              onClick={() => onSelect("primaryButton", mode)}
+              title={title("primaryButton")}
+              className={`cursor-pointer rounded px-2 py-1 text-[11px] font-medium ${ring("primaryButton")}`}
               style={{
                 backgroundColor: mapping.primary,
                 color: mapping.onPrimary,
@@ -128,9 +187,9 @@ function Preview({
             </button>
             <button
               type="button"
-              onClick={() => onSelect("border", mode)}
-              title={`Edit the ${mode} border`}
-              className={`cursor-pointer rounded border px-2 py-1 text-[11px] font-medium ${ring("border")}`}
+              onClick={() => onSelect("secondaryButton", mode)}
+              title={title("secondaryButton")}
+              className={`cursor-pointer rounded border px-2 py-1 text-[11px] font-medium ${ring("secondaryButton")}`}
               style={{ borderColor: mapping.border, color: mapping.text }}
             >
               Secondary
@@ -196,6 +255,7 @@ export function ThemeTester({
     suggestThemePair(paletteColors, neutralHexes),
   );
   const [mode, setMode] = useState<Mode>("light");
+  const [element, setElement] = useState<PreviewElement>("primaryButton");
   const [role, setRole] = useState<ThemeRoleId>("primary");
 
   // Re-proposed whenever the palette itself changes, because a mapping onto colors that are no
@@ -233,10 +293,27 @@ export function ThemeTester({
     return found;
   }, [pair]);
 
-  /** Picking something in a preview edits that thing, in the mode it was picked in. */
-  function selectRole(next: ThemeRoleId, nextMode: Mode) {
-    setRole(next);
+  /**
+   * Picking something in a preview makes it the thing being edited, in the mode it was picked in.
+   * The property being edited stays put if the new element has it too — moving from the card to
+   * the secondary button while working on borders shouldn't knock you back to backgrounds.
+   */
+  function selectElement(next: PreviewElement, nextMode: Mode) {
+    setElement(next);
     setMode(nextMode);
+    const parts = ELEMENTS[next].parts;
+    if (!parts.some((part) => part.role === role)) {
+      setRole((parts[0] as { role: ThemeRoleId }).role);
+    }
+  }
+
+  /** Picking from the full list moves the selected element to one the role actually paints. */
+  function selectRole(next: ThemeRoleId) {
+    setRole(next);
+    if (!ELEMENTS[element].parts.some((part) => part.role === next)) {
+      const owner = elementsUsing(next)[0];
+      if (owner) setElement(owner);
+    }
   }
 
   function assign(hex: string) {
@@ -257,23 +334,81 @@ export function ThemeTester({
 
   return (
     <ToolColumns className="p-4">
-      <div className="flex gap-3">
-        <Preview
-          mapping={pair.light}
-          label="Light"
-          mode="light"
-          activeRole={role}
-          activeMode={mode}
-          onSelect={selectRole}
-        />
-        <Preview
-          mapping={pair.dark}
-          label="Dark"
-          mode="dark"
-          activeRole={role}
-          activeMode={mode}
-          onSelect={selectRole}
-        />
+      <div className="flex flex-col gap-2">
+        <p className="text-[11px] text-zinc-500">
+          Click any part of a preview to customise the colours it uses.
+        </p>
+        <div className="flex gap-3">
+          <Preview
+            mapping={pair.light}
+            label="Light"
+            mode="light"
+            activeElement={element}
+            activeMode={mode}
+            onSelect={selectElement}
+          />
+          <Preview
+            mapping={pair.dark}
+            label="Dark"
+            mode="dark"
+            activeElement={element}
+            activeMode={mode}
+            onSelect={selectElement}
+          />
+        </div>
+      </div>
+
+      {/* Everything that paints the selected element, each one editable. An element is rarely one
+          colour, so this is a list rather than a single swatch — and a role is rarely one
+          element, so each row says what else it will change. Editing the secondary button's
+          border recolours the card's edge too, and finding that out afterwards is worse than
+          being told. */}
+      <div className="flex flex-col gap-1.5">
+        <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+          {`${ELEMENTS[element].label} · ${mode}`}
+        </span>
+        <div className="flex flex-col gap-1">
+          {ELEMENTS[element].parts.map((part) => {
+            const hex = pair[mode][part.role];
+            const isActive = part.role === role;
+            const roleLabel = THEME_ROLES.find(
+              (r) => r.id === part.role,
+            )?.label;
+            const alsoOn = elementsUsing(part.role)
+              .filter((other) => other !== element)
+              .map((other) => ELEMENTS[other].label.toLowerCase());
+            return (
+              <button
+                key={`${part.property}-${part.role}`}
+                type="button"
+                onClick={() => setRole(part.role)}
+                className={`flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1.5 text-left transition ${
+                  isActive
+                    ? "border-brand-500"
+                    : "border-black/10 hover:bg-zinc-100 dark:border-white/10 dark:hover:bg-surface-elevated"
+                }`}
+              >
+                <span
+                  className="h-5 w-5 shrink-0 rounded-md border border-black/10 dark:border-white/10"
+                  style={{ backgroundColor: hex }}
+                />
+                <span className="flex min-w-0 flex-col">
+                  <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                    {part.property}
+                  </span>
+                  <span className="truncate text-[11px] text-zinc-500">
+                    {alsoOn.length > 0
+                      ? `${roleLabel} · also on the ${alsoOn.join(", ")}`
+                      : roleLabel}
+                  </span>
+                </span>
+                <span className="ml-auto shrink-0 font-mono text-[11px] text-zinc-500">
+                  {hex}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {warnings.length > 0 && (
@@ -326,7 +461,7 @@ export function ThemeTester({
             <button
               key={definition.id}
               type="button"
-              onClick={() => setRole(definition.id)}
+              onClick={() => selectRole(definition.id)}
               className={`flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1.5 text-left transition ${
                 isActive
                   ? "border-brand-500"
