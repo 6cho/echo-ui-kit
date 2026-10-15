@@ -3,6 +3,7 @@ import {
   DEFAULT_NEUTRAL_TINT,
   deriveNeutrals,
   formatThemeCss,
+  paletteAccent,
   suggestThemePair,
   THEME_ROLES,
   type ThemeMapping,
@@ -18,50 +19,127 @@ import { ToolColumns } from "./ToolColumns";
 
 type Mode = "light" | "dark";
 
-/** A miniature interface painted entirely from a mapping. Abstract on purpose — enough shape to
- *  judge the colors against each other, not a mockup of any particular screen. */
-function Preview({ mapping, label }: { mapping: ThemeMapping; label: string }) {
+// One role row: two lines of text plus its padding and border, and the gap between rows. Used to
+// cut the list off on a row boundary rather than through one.
+const ROLE_ROW_HEIGHT = 46;
+const ROLE_ROW_GAP = 4;
+
+/**
+ * A miniature interface painted entirely from a mapping, and the quickest way to edit one.
+ *
+ * Every part of it selects the role that paints it, so a colour that looks wrong is fixed by
+ * clicking the thing that looks wrong rather than by working out which of seven names governs it.
+ * Clicking into a mode's preview switches to editing that mode as well, since wanting to change
+ * something you are looking at in dark mode is not usually a wish to change it in light.
+ *
+ * The containers' hit areas are siblings of their contents rather than wrappers around them —
+ * stretched behind, with the contents sitting above. A button inside a button is not valid HTML
+ * and the inner one stops being reachable, so the card can't simply wrap the heading it holds.
+ *
+ * Abstract on purpose: enough shape to judge the colours against each other, not a mockup of any
+ * particular screen.
+ */
+function Preview({
+  mapping,
+  label,
+  mode,
+  activeRole,
+  activeMode,
+  onSelect,
+}: {
+  mapping: ThemeMapping;
+  label: string;
+  mode: Mode;
+  activeRole: ThemeRoleId;
+  activeMode: Mode;
+  onSelect: (role: ThemeRoleId, mode: Mode) => void;
+}) {
+  const isEditing = (role: ThemeRoleId) =>
+    activeMode === mode && activeRole === role;
+  /** A ring on whatever is currently being edited, so the two views stay tied together. */
+  const ring = (role: ThemeRoleId) =>
+    isEditing(role) ? "ring-2 ring-brand-500 ring-offset-1" : "";
+
+  const Area = ({ paints, title }: { paints: ThemeRoleId; title: string }) => (
+    <button
+      type="button"
+      onClick={() => onSelect(paints, mode)}
+      title={title}
+      aria-label={title}
+      className={`absolute inset-0 cursor-pointer rounded-md ${ring(paints)}`}
+    />
+  );
+
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-1">
       <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
         {label}
       </span>
       <div
-        className="flex flex-col gap-2 rounded-lg border border-black/10 p-3 dark:border-white/10"
+        className="relative flex flex-col gap-2 rounded-lg border border-black/10 p-3 dark:border-white/10"
         style={{ backgroundColor: mapping.background }}
       >
+        <Area paints="background" title={`Edit the ${mode} background`} />
         <div
-          className="flex flex-col gap-2 rounded-md border p-2.5"
+          className="relative flex flex-col gap-2 rounded-md border p-2.5"
           style={{
             backgroundColor: mapping.surface,
             borderColor: mapping.border,
           }}
         >
-          <span
-            className="text-xs font-semibold"
+          <Area paints="surface" title={`Edit the ${mode} surface`} />
+          <button
+            type="button"
+            onClick={() => onSelect("text", mode)}
+            title={`Edit the ${mode} text`}
+            className={`relative cursor-pointer rounded text-left text-xs font-semibold ${ring("text")}`}
             style={{ color: mapping.text }}
           >
             Card heading
-          </span>
-          <span className="text-[11px]" style={{ color: mapping.muted }}>
+          </button>
+          <button
+            type="button"
+            onClick={() => onSelect("muted", mode)}
+            title={`Edit the ${mode} muted text`}
+            className={`relative cursor-pointer rounded text-left text-[11px] ${ring("muted")}`}
+            style={{ color: mapping.muted }}
+          >
             Secondary copy that sits underneath it.
-          </span>
-          <div className="flex items-center gap-1.5 pt-0.5">
-            <span
-              className="rounded px-2 py-1 text-[11px] font-medium"
+          </button>
+          <div className="relative flex items-center gap-1.5 pt-0.5">
+            <button
+              type="button"
+              onClick={() => onSelect("primary", mode)}
+              title={`Edit the ${mode} primary`}
+              className={`cursor-pointer rounded px-2 py-1 text-[11px] font-medium ${ring("primary")}`}
               style={{
                 backgroundColor: mapping.primary,
                 color: mapping.onPrimary,
               }}
             >
               Primary
-            </span>
-            <span
-              className="rounded border px-2 py-1 text-[11px] font-medium"
+            </button>
+            <button
+              type="button"
+              onClick={() => onSelect("onPrimary", mode)}
+              title={`Edit the ${mode} text on the accent`}
+              className={`cursor-pointer rounded px-2 py-1 text-[11px] font-medium ${ring("onPrimary")}`}
+              style={{
+                backgroundColor: mapping.primary,
+                color: mapping.onPrimary,
+              }}
+            >
+              Aa
+            </button>
+            <button
+              type="button"
+              onClick={() => onSelect("border", mode)}
+              title={`Edit the ${mode} border`}
+              className={`cursor-pointer rounded border px-2 py-1 text-[11px] font-medium ${ring("border")}`}
               style={{ borderColor: mapping.border, color: mapping.text }}
             >
               Secondary
-            </span>
+            </button>
           </div>
         </div>
       </div>
@@ -93,10 +171,27 @@ export function ThemeTester({
    * can be built out of both without either one muddying the other.
    */
   const [tint, setTint] = useState(DEFAULT_NEUTRAL_TINT);
+  /**
+   * Which colour the neutrals lean toward: the palette's accent, which is also what the theme
+   * paints its buttons with. So they follow the selection — pick different colours in the palette
+   * and the structure re-tints with them — and they lean toward the same colour the theme is
+   * accented in rather than toward something worked out separately.
+   */
+  const neutralSource = paletteAccent(paletteColors) ?? baseColor ?? "#71717a";
   const neutrals = useMemo(
-    () => deriveNeutrals(baseColor ?? paletteColors[0] ?? "#71717a", tint),
-    [baseColor, paletteColors, tint],
+    () => deriveNeutrals(neutralSource, tint),
+    [neutralSource, tint],
   );
+  // The two ends of what the slider can do, so its track shows them rather than naming them.
+  const tintTrack = useMemo(() => {
+    const at = (amount: number) =>
+      deriveNeutrals(neutralSource, amount).find((entry) => entry.step === 500)
+        ?.hex ?? "#71717a";
+    return {
+      gradient: `linear-gradient(90deg, ${at(0)}, ${at(1)})`,
+      thumb: at(tint),
+    };
+  }, [neutralSource, tint]);
   const neutralHexes = useMemo(
     () => neutrals.map((entry) => entry.hex),
     [neutrals],
@@ -143,6 +238,12 @@ export function ThemeTester({
     return found;
   }, [pair]);
 
+  /** Picking something in a preview edits that thing, in the mode it was picked in. */
+  function selectRole(next: ThemeRoleId, nextMode: Mode) {
+    setRole(next);
+    setMode(nextMode);
+  }
+
   function assign(hex: string) {
     setPair((current) => ({
       ...current,
@@ -162,8 +263,22 @@ export function ThemeTester({
   return (
     <ToolColumns className="p-4">
       <div className="flex gap-3">
-        <Preview mapping={pair.light} label="Light" />
-        <Preview mapping={pair.dark} label="Dark" />
+        <Preview
+          mapping={pair.light}
+          label="Light"
+          mode="light"
+          activeRole={role}
+          activeMode={mode}
+          onSelect={selectRole}
+        />
+        <Preview
+          mapping={pair.dark}
+          label="Dark"
+          mode="dark"
+          activeRole={role}
+          activeMode={mode}
+          onSelect={selectRole}
+        />
       </div>
 
       {warnings.length > 0 && (
@@ -201,7 +316,14 @@ export function ThemeTester({
         </div>
       </div>
 
-      <div className="flex flex-col gap-1">
+      {/* Six rows and then it scrolls. The list is a way to reach a role, not the thing being
+          looked at — the previews above are — and at full height it pushed them off the top of a
+          panel. Sized from the rows rather than guessed so it lands on a boundary instead of
+          halfway through the seventh. */}
+      <div
+        className="flex flex-col gap-1 overflow-y-auto"
+        style={{ maxHeight: ROLE_ROW_HEIGHT * 6 + ROLE_ROW_GAP * 5 }}
+      >
         {THEME_ROLES.map((definition) => {
           const hex = pair[mode][definition.id];
           const isActive = definition.id === role;
@@ -273,6 +395,8 @@ export function ThemeTester({
           max={1}
           step={0.01}
           markerValue={DEFAULT_NEUTRAL_TINT}
+          trackBackground={tintTrack.gradient}
+          thumbColor={tintTrack.thumb}
           displayValue={
             tint === 0
               ? "Grayscale"

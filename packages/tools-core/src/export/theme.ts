@@ -46,6 +46,18 @@ export const THEME_ROLES: ThemeRole[] = [
 
 export type ThemeMapping = Record<ThemeRoleId, string>;
 
+/**
+ * The colour a palette is most "about" — its most saturated entry.
+ *
+ * Exported because more than one thing has to agree on it. The theme's accent is this colour, and
+ * the neutrals are tinted toward it, so if they were each worked out separately the structure
+ * could end up leaning toward one colour while the buttons were another.
+ */
+export function paletteAccent(colors: string[]): string | null {
+  if (colors.length === 0) return null;
+  return [...colors].sort((a, b) => chromaOf(b) - chromaOf(a))[0] as string;
+}
+
 // Muted text still has to be read, so it can't go below the large-text floor; aiming at the
 // normal-text threshold keeps it comfortably legible while leaving headroom beneath body copy.
 const MUTED_TARGET_CONTRAST = 4.5;
@@ -108,11 +120,7 @@ export function suggestThemePair(
     return ramp[clamped] as string;
   };
 
-  // The most colorful entry, which is almost always what a palette is actually "about" — the
-  // neutrals around it are scaffolding, and now they are scaffolding this function supplies.
-  const accent = [...colors].sort(
-    (a, b) => chromaOf(b) - chromaOf(a),
-  )[0] as string;
+  const accent = paletteAccent(colors) ?? (colors[0] as string);
 
   const forMode = (mode: "light" | "dark"): ThemeMapping => {
     const steps = NEUTRAL_ROLES[mode];
