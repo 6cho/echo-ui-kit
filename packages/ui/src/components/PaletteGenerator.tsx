@@ -12,7 +12,6 @@ import {
   generateTintShadeScale,
   type HarmonyType,
   toHsl,
-  toOklch,
 } from "@echo-ui-kit/tools-core";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { extractPaletteFromImageFile } from "../lib/imagePalette";
@@ -70,14 +69,44 @@ const HARMONY_TYPES: HarmonyType[] = [
 ];
 // Below this OKLCH chroma, a color reads as essentially neutral gray — hue is barely (or not
 // at all) perceptible, which is exactly what every hue-based feature here depends on.
-const LOW_CHROMA_THRESHOLD = 0.02;
+/**
+ * Below this saturation the base is treated as grey — and is grey, exactly.
+ *
+ * In the slider's own units, so the line sits where you can see it rather than at an internal
+ * chroma figure that lands somewhere different for every lightness. Everything under it behaves
+ * identically: harmony held at monochromatic, the palette built from a true grey, the app themed
+ * grey. A band in which 3% and 0% gave different results would be a band of near-misses.
+ */
+const GRAYSCALE_SATURATION = 0.05;
 
-/** No hue to speak of — black, white and the greys between. */
-function isGrayscale(hex: string): boolean {
+function saturationOf(hex: string): number {
   try {
-    return toOklch(hex).c < LOW_CHROMA_THRESHOLD;
+    const s = toHsl(hex).s;
+    return Number.isFinite(s) ? (s as number) : 0;
   } catch {
-    return false;
+    return 1;
+  }
+}
+
+/**
+ * No hue to speak of — black, white and the greys between.
+ *
+ * Compared in whole percent, the way the saturation slider displays it. A colour stored as a hex
+ * is quantised, so dragging to what reads as "5%" can land on 4.97% underneath — and a lock that
+ * engaged on a slider showing 5% would contradict the rule it claims to follow.
+ */
+function isGrayscale(hex: string): boolean {
+  return (
+    Math.round(saturationOf(hex) * 100) < Math.round(GRAYSCALE_SATURATION * 100)
+  );
+}
+
+/** The same colour with its saturation taken out, keeping its lightness exactly. */
+function toGray(hex: string): string {
+  try {
+    return fromHsl({ h: 0, s: 0, l: toHsl(hex).l });
+  } catch {
+    return hex;
   }
 }
 
@@ -364,6 +393,15 @@ export function PaletteGenerator({
   const [chosenHarmony, setChosenHarmony] = useState<HarmonyType>("analogous");
   const isBaseGrayscale = useMemo(() => isGrayscale(baseColor), [baseColor]);
   /**
+   * The base the palette is actually built from. The base as stored is what the sliders show, so
+   * dragging saturation to 3% still reads 3% — but under the grey line the palette is built from
+   * the true grey at that lightness, so 3% and 0% produce the same palette and the same theme.
+   */
+  const paletteBase = useMemo(
+    () => (isBaseGrayscale ? toGray(baseColor) : baseColor),
+    [isBaseGrayscale, baseColor],
+  );
+  /**
    * The harmony actually in use: whatever was chosen, unless the base has no hue.
    *
    * Every harmony but monochromatic is a rotation around the colour wheel, and a grey has no
@@ -472,11 +510,11 @@ export function PaletteGenerator({
 
   const harmonyColors = useMemo(() => {
     try {
-      return generateHarmony(baseColor, harmony);
+      return generateHarmony(paletteBase, harmony);
     } catch {
       return [];
     }
-  }, [baseColor, harmony]);
+  }, [paletteBase, harmony]);
 
   // These sliders don't hold their own state — they read the base color's current H/S/L and,
   // on drag, write a new base color back with just that one component changed. Nothing else in
@@ -603,8 +641,8 @@ export function PaletteGenerator({
   // then the rest of the harmony colors, deduped.
   const columns = useMemo(() => {
     if (paletteSource === "image") return adjustedImageColors;
-    return Array.from(new Set([baseColor, ...harmonyColors]));
-  }, [paletteSource, adjustedImageColors, baseColor, harmonyColors]);
+    return Array.from(new Set([paletteBase, ...harmonyColors]));
+  }, [paletteSource, adjustedImageColors, paletteBase, harmonyColors]);
 
   // Each harmony type remembers its own palette selection. One you haven't clicked anything in
   // yet has no entry here, so it "live" tracks the principled seed for the base + harmony colors
@@ -678,7 +716,7 @@ export function PaletteGenerator({
   const workingPalette = useMemo(
     () => ({
       baseColor:
-        paletteSource === "image" ? (columns[0] ?? baseColor) : baseColor,
+        paletteSource === "image" ? (columns[0] ?? paletteBase) : paletteBase,
       harmony: (paletteSource === "image" ? "image" : harmony) as
         | HarmonyType
         | "image",
@@ -688,7 +726,7 @@ export function PaletteGenerator({
       // either way to emit a full 100–900 ramp per color rather than only the picked shades.
       columns,
     }),
-    [paletteSource, columns, baseColor, harmony, displaySelectedColors],
+    [paletteSource, columns, paletteBase, harmony, displaySelectedColors],
   );
 
   useEffect(() => {
@@ -892,7 +930,7 @@ export function PaletteGenerator({
                     className="h-full w-full cursor-pointer"
                   />
                 }
-                title={baseColor}
+                title={paletteBase}
                 titleClassName="font-mono"
                 subtitle="Drives the harmony, scales, and shades below"
                 action={
@@ -1125,8 +1163,8 @@ export function PaletteGenerator({
                     colors={paletteSource === "image" ? columns : harmonyColors}
                     baseColor={
                       paletteSource === "image"
-                        ? (columns[0] ?? baseColor)
-                        : baseColor
+                        ? (columns[0] ?? paletteBase)
+                        : paletteBase
                     }
                     mode={paletteSource === "image" ? "gradient" : "harmony"}
                     onToggleColor={toggleColor}

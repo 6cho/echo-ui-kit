@@ -109,13 +109,16 @@ export function deriveAppTheme(
   const base = safeOklch(source);
   if (!base) return null;
 
-  const hue = base.h ?? 0;
   const chroma = base.c ?? 0;
+  // culori reports no hue for a colour with no chroma, and sometimes NaN rather than nothing,
+  // which `??` lets through. Any hue is as good as any other at zero chroma, so it is pinned.
+  const hue = Number.isFinite(base.h) ? (base.h as number) : 0;
 
-  // A colourless base has no hue to lend, and culori's hue for an achromatic colour is whatever
-  // fell out of the conversion. Anything with even a trace of colour is themed, so the tint
-  // arrives by fading in rather than by crossing a line.
-  if (chroma < 0.002) return null;
+  // A grey base still themes the app — grey. This used to bail out and hand the interface back
+  // to its stock blue, which made exactly-zero saturation the one value that behaved differently
+  // from every value just above it: at 1% the app was a faint warm grey, at 0% it was suddenly
+  // blue. With no early return the tint simply fades to nothing, and a palette of greys gets an
+  // app of greys.
 
   // How much of the tint this colour has earned. Full colour gets all of it; a nearly grey one
   // gets nearly none, which is both what it should look like and what stops the effect switching

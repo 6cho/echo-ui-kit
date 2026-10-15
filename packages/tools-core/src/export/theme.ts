@@ -95,7 +95,9 @@ const SECONDARY_VIVID_CHROMA = 0.08;
 const SECONDARY_MAX_CHROMA = 0.18;
 // Below this a palette has no colour to speak of — black, white and greys — and its secondary is a
 // grey too. Matches the point at which the palette tool itself warns that a base colour has
-// little to no saturation (LOW_CHROMA_THRESHOLD in PaletteGenerator).
+// little to no colour. This works on colours rather than on a slider, so it is a chroma figure;
+// the palette tool locks anything under 5% saturation to exact grey before it ever gets here,
+// so a palette built there arrives either plainly coloured or with no chroma at all.
 const ACHROMATIC_CHROMA = 0.02;
 
 export interface ThemePair {
