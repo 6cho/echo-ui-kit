@@ -36,6 +36,13 @@ const ROLE_ROW_GAP = 4;
  * stretched behind, with the contents sitting above. A button inside a button is not valid HTML
  * and the inner one stops being reachable, so the card can't simply wrap the heading it holds.
  *
+ * Six of the seven roles are reachable here. The seventh, the text on the accent, is the Primary
+ * button's own label, and that rule is why it can't have its own target inside it. It was briefly
+ * given a chip of its own next to the button, which was a second identical accent-coloured
+ * button that existed only to be clicked — an element invented to be a hit area, not an interface
+ * anyone would draw. It is edited from the list instead, where it already has a name and a
+ * description.
+ *
  * Abstract on purpose: enough shape to judge the colours against each other, not a mockup of any
  * particular screen.
  */
@@ -118,18 +125,6 @@ function Preview({
               }}
             >
               Primary
-            </button>
-            <button
-              type="button"
-              onClick={() => onSelect("onPrimary", mode)}
-              title={`Edit the ${mode} text on the accent`}
-              className={`cursor-pointer rounded px-2 py-1 text-[11px] font-medium ${ring("onPrimary")}`}
-              style={{
-                backgroundColor: mapping.primary,
-                color: mapping.onPrimary,
-              }}
-            >
-              Aa
             </button>
             <button
               type="button"
