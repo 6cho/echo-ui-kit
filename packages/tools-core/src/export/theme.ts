@@ -341,20 +341,41 @@ function mutedFor(
  * from inside the app can't have a switch, and every app that ships dark mode eventually wants
  * one. A media query is one line to add on top of this; the reverse isn't true.
  */
-export function formatThemeCss(pair: ThemePair): string {
-  const declarations = (mapping: ThemeMapping) =>
-    THEME_ROLES.map(
+/**
+ * Component-level colours that sit on top of the shared roles, per mode, keyed by a name such as
+ * "secondaryButton-background". They exist for properties no role covers — a secondary button
+ * given a fill of its own — and are emitted after the roles, so the shared vocabulary comes first
+ * and the exceptions read as exceptions.
+ */
+export interface ComponentColors {
+  light: Record<string, string>;
+  dark: Record<string, string>;
+}
+
+export function formatThemeCss(
+  pair: ThemePair,
+  components?: ComponentColors,
+): string {
+  const declarations = (
+    mapping: ThemeMapping,
+    extra: Record<string, string>,
+  ) => [
+    ...THEME_ROLES.map(
       (role) =>
         `  --color-${kebab(role.id)}: ${mapping[role.id].toLowerCase()};`,
-    );
+    ),
+    ...Object.entries(extra).map(
+      ([name, hex]) => `  --color-${kebab(name)}: ${hex.toLowerCase()};`,
+    ),
+  ];
 
   return [
     ":root {",
-    ...declarations(pair.light),
+    ...declarations(pair.light, components?.light ?? {}),
     "}",
     "",
     ".dark {",
-    ...declarations(pair.dark),
+    ...declarations(pair.dark, components?.dark ?? {}),
     "}",
   ].join("\n");
 }
