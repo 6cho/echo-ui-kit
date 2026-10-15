@@ -1,5 +1,6 @@
 import {
   contrastRatio,
+  DEFAULT_NEUTRAL_TINT,
   deriveNeutrals,
   formatThemeCss,
   suggestThemePair,
@@ -12,6 +13,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { ColorStrip } from "./ColorStrip";
 import { CssOutput } from "./CssOutput";
+import { Slider } from "./Slider";
 import { ToolColumns } from "./ToolColumns";
 
 type Mode = "light" | "dark";
@@ -90,9 +92,10 @@ export function ThemeTester({
    * long to be a palette or too colourful to be an interface. These exist alongside it so a theme
    * can be built out of both without either one muddying the other.
    */
+  const [tint, setTint] = useState(DEFAULT_NEUTRAL_TINT);
   const neutrals = useMemo(
-    () => deriveNeutrals(baseColor ?? paletteColors[0] ?? "#71717a"),
-    [baseColor, paletteColors],
+    () => deriveNeutrals(baseColor ?? paletteColors[0] ?? "#71717a", tint),
+    [baseColor, paletteColors, tint],
   );
   const neutralHexes = useMemo(
     () => neutrals.map((entry) => entry.hex),
@@ -233,15 +236,6 @@ export function ThemeTester({
         })}
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <ColorStrip
-          label={`Neutrals · derived from the palette`}
-          colors={neutralHexes}
-          value={pair[mode][role]}
-          onChange={assign}
-        />
-      </div>
-
       <div className="flex items-end gap-2">
         <ColorStrip
           label={`${activeRole?.label ?? "Role"} · ${mode}`}
@@ -256,6 +250,37 @@ export function ThemeTester({
           onChange={(e) => assign(e.target.value)}
           title="Pick any color"
           className="h-7 w-7 shrink-0 cursor-pointer rounded-md border border-black/20 dark:border-white/20"
+        />
+      </div>
+
+      {/* Under the palette, because that is the order they are derived in and the order they
+          matter in: the palette is the decision, these follow from it. */}
+      <div className="flex flex-col gap-1.5">
+        <ColorStrip
+          label="Neutrals · page, cards, borders and copy"
+          colors={neutralHexes}
+          value={pair[mode][role]}
+          onChange={assign}
+        />
+        {/* How much of the palette's colour the structure carries, from grey to the colour's own
+            saturation. No value along it is more correct than another, which is why it is a
+            control rather than a constant — but the theme did start somewhere, so the slider
+            carries a tick for it. */}
+        <Slider
+          label="Neutral tint"
+          value={tint}
+          min={0}
+          max={1}
+          step={0.01}
+          markerValue={DEFAULT_NEUTRAL_TINT}
+          displayValue={
+            tint === 0
+              ? "Grayscale"
+              : tint === 1
+                ? "Full saturation"
+                : `${Math.round(tint * 100)}%`
+          }
+          onChange={setTint}
         />
       </div>
 

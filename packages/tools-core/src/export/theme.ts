@@ -48,8 +48,9 @@ export type ThemeMapping = Record<ThemeRoleId, string>;
 
 // Muted text still has to be read, so it can't go below the large-text floor; aiming at the
 // normal-text threshold keeps it comfortably legible while leaving headroom beneath body copy.
-const MUTED_MIN_CONTRAST = 3;
 const MUTED_TARGET_CONTRAST = 4.5;
+// Text on the accent has the same job as body copy, so it answers to the same threshold.
+const ON_ACCENT_MIN_CONTRAST = 4.5;
 
 export interface ThemePair {
   light: ThemeMapping;
@@ -116,12 +117,18 @@ export function suggestThemePair(
   const forMode = (mode: "light" | "dark"): ThemeMapping => {
     const steps = NEUTRAL_ROLES[mode];
     const surface = atStep(steps.surface);
-    // Whichever end of the ramp reads better on the accent, rather than assuming white. A pale
-    // accent needs dark text on it and there is no reason to guess which way round it is.
+    // What goes on the accent. The ramp's own ends first, so the theme stays made of its own
+    // colours — but at a high tint those ends are a saturated near-white and near-black rather
+    // than white and black, and against some accents neither clears AA. Text on a button is the
+    // one place to stop being principled about it.
     const onAccent =
-      contrastRatio(atStep(50), accent) >= contrastRatio(atStep(900), accent)
-        ? atStep(50)
-        : atStep(900);
+      [atStep(50), atStep(900), "#ffffff", "#000000"]
+        .map((hex) => ({ hex, ratio: contrastRatio(hex, accent) }))
+        .find((entry) => entry.ratio >= ON_ACCENT_MIN_CONTRAST)?.hex ??
+      ([atStep(50), atStep(900), "#ffffff", "#000000"]
+        .map((hex) => ({ hex, ratio: contrastRatio(hex, accent) }))
+        .sort((a, b) => b.ratio - a.ratio)[0]?.hex as string);
+
     return {
       background: atStep(steps.background),
       surface,
@@ -130,8 +137,12 @@ export function suggestThemePair(
       // Off the ramp like the rest of the structure. Letting a palette colour win here was the
       // last place the old behaviour showed through: searching the palette for something at a
       // readable contrast found, on a blue theme, a green — and secondary copy is body copy that
-      // recedes, not an accent. pickMuted stays as the guard for a ramp that somehow fails.
-      muted: pickMuted([atStep(steps.muted)], surface, atStep(steps.text)),
+      // recedes, not an accent.
+      //
+      // Stepping further from the surface when the nominal rung doesn't clear AA is what lets the
+      // tint be turned all the way up: chroma leaves OKLCH lightness alone but does move sRGB
+      // luminance, enough that a fully tinted ramp lands the usual rung at about 4.44.
+      muted: mutedFor(atStep, mode, surface),
       primary: accent,
       onPrimary: onAccent,
     };
@@ -141,33 +152,21 @@ export function suggestThemePair(
 }
 
 /**
- * Secondary text: readable against its surface, but visibly softer than body copy.
- *
- * Aims at the AA threshold rather than maximising contrast, because the point of muted text is to
- * recede — the highest-contrast option is already what `text` uses. Anything failing outright is
- * excluded first, and if nothing in the palette clears the bar it falls back to the body color,
- * since dropping to something unreadable would be worse than losing the distinction.
- *
- * Exists because the naive choice — the palette's middle color — can land on the surface color
- * itself and produce 1:1, invisible text. That isn't hypothetical: it's what the first version of
- * this function did on a five-color blue ramp.
+ * Secondary copy: the rung that recedes from body copy while still clearing AA against the
+ * surface it sits on, searching away from that surface until one does.
  */
-function pickMuted(
-  candidates: string[],
+function mutedFor(
+  atStep: (step: number) => string,
+  mode: "light" | "dark",
   surface: string,
-  fallback: string,
 ): string {
-  const readable = candidates
-    .filter((hex) => hex.toLowerCase() !== surface.toLowerCase())
-    .map((hex) => ({ hex, ratio: contrastRatio(hex, surface) }))
-    .filter((entry) => entry.ratio >= MUTED_MIN_CONTRAST);
-  if (readable.length === 0) return fallback;
-  readable.sort(
-    (a, b) =>
-      Math.abs(a.ratio - MUTED_TARGET_CONTRAST) -
-      Math.abs(b.ratio - MUTED_TARGET_CONTRAST),
-  );
-  return (readable[0] as { hex: string }).hex;
+  // Away from the surface in both cases: darker on a pale card, lighter on a dark one.
+  const candidates = mode === "light" ? [500, 600, 700] : [400, 300, 200];
+  for (const step of candidates) {
+    const hex = atStep(step);
+    if (contrastRatio(hex, surface) >= MUTED_TARGET_CONTRAST) return hex;
+  }
+  return atStep(mode === "light" ? 900 : 50);
 }
 
 /**

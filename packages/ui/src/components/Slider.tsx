@@ -4,6 +4,9 @@ import type { CSSProperties } from "react";
 // real gradient instead, so their track previews what dragging would actually produce.
 const DEFAULT_TRACK = "linear-gradient(currentColor, currentColor)";
 const DEFAULT_THUMB_COLOR = "#ffffff";
+// Matches the thumb's h-3.5/w-3.5 below. Needed as a number because the marker has to be placed
+// on the same travel the thumb uses.
+const THUMB_SIZE = 14;
 
 /**
  * One labeled range input. `trackBackground` is a caller-supplied gradient so a slider whose
@@ -26,6 +29,7 @@ export function Slider({
   displayValue,
   trackBackground = DEFAULT_TRACK,
   thumbColor = DEFAULT_THUMB_COLOR,
+  markerValue,
   onChange,
 }: {
   label: string;
@@ -36,6 +40,9 @@ export function Slider({
   displayValue: string;
   trackBackground?: string;
   thumbColor?: string;
+  /** A value to tick below the track — where this started, so a drag has something to be a
+   *  departure from rather than just a number. */
+  markerValue?: number;
   onChange: (value: number) => void;
 }) {
   return (
@@ -65,6 +72,22 @@ export function Slider({
         }
         className="h-0.5 w-full cursor-pointer appearance-none rounded-full [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border [&::-moz-range-thumb]:border-white/60 [&::-moz-range-thumb]:bg-[var(--slider-thumb-color)] [&::-moz-range-thumb]:shadow-sm [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-white/60 [&::-webkit-slider-thumb]:bg-[var(--slider-thumb-color)] [&::-webkit-slider-thumb]:shadow-sm"
       />
+      {markerValue !== undefined && (
+        // Positioned on the same geometry as the thumb: its centre travels between the two
+        // half-widths, not between the ends of the track, so the tick lines up with where the
+        // thumb actually sits at that value rather than being a fraction out at each extreme.
+        <span className="relative block h-1.5">
+          <span
+            className="absolute top-0 h-1.5 w-px bg-zinc-400 dark:bg-zinc-500"
+            style={{
+              left: `calc(${((markerValue - min) / (max - min)) * 100}% - ${
+                ((markerValue - min) / (max - min)) * THUMB_SIZE -
+                THUMB_SIZE / 2
+              }px)`,
+            }}
+          />
+        </span>
+      )}
     </div>
   );
 }
