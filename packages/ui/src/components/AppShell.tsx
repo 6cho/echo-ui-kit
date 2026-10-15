@@ -1211,7 +1211,13 @@ export function AppShell() {
             false,
           )}
           {slot("contrast", <ContrastView colors={workingColors} />)}
-          {slot("theme", <ThemeTester paletteColors={workingColors} />)}
+          {slot(
+            "theme",
+            <ThemeTester
+              paletteColors={workingColors}
+              baseColor={workingPalette?.baseColor}
+            />,
+          )}
           {slot("box", <BoxEditor paletteColors={workingColors} />)}
           {slot(
             "gradient",

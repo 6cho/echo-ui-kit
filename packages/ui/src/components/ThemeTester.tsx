@@ -1,5 +1,6 @@
 import {
   contrastRatio,
+  deriveNeutrals,
   formatThemeCss,
   suggestThemePair,
   THEME_ROLES,
@@ -74,9 +75,32 @@ function Preview({ mapping, label }: { mapping: ThemeMapping; label: string }) {
  * the only way to catch that is to look at them together rather than toggling back and forth and
  * trusting your memory of what you just saw.
  */
-export function ThemeTester({ paletteColors }: { paletteColors: string[] }) {
+export function ThemeTester({
+  paletteColors,
+  baseColor,
+}: {
+  paletteColors: string[];
+  baseColor?: string | null;
+}) {
+  /**
+   * Near-greys carrying the palette's hue, derived rather than picked.
+   *
+   * Deliberately not part of the palette: an interface is mostly structure — page, card, divider,
+   * body copy — and a palette asked to supply those as well as its accents ends up either too
+   * long to be a palette or too colourful to be an interface. These exist alongside it so a theme
+   * can be built out of both without either one muddying the other.
+   */
+  const neutrals = useMemo(
+    () => deriveNeutrals(baseColor ?? paletteColors[0] ?? "#71717a"),
+    [baseColor, paletteColors],
+  );
+  const neutralHexes = useMemo(
+    () => neutrals.map((entry) => entry.hex),
+    [neutrals],
+  );
+
   const [pair, setPair] = useState<ThemePair>(() =>
-    suggestThemePair(paletteColors),
+    suggestThemePair(paletteColors, neutralHexes),
   );
   const [mode, setMode] = useState<Mode>("light");
   const [role, setRole] = useState<ThemeRoleId>("primary");
@@ -84,9 +108,15 @@ export function ThemeTester({ paletteColors }: { paletteColors: string[] }) {
   // Re-proposed whenever the palette itself changes, because a mapping onto colors that are no
   // longer in the palette isn't a theme anyone wants to keep editing.
   const paletteKey = paletteColors.join(",");
+  const neutralKey = neutralHexes.join(",");
   useEffect(() => {
-    setPair(suggestThemePair(paletteKey ? paletteKey.split(",") : []));
-  }, [paletteKey]);
+    setPair(
+      suggestThemePair(
+        paletteKey ? paletteKey.split(",") : [],
+        neutralKey ? neutralKey.split(",") : [],
+      ),
+    );
+  }, [paletteKey, neutralKey]);
 
   const css = useMemo(() => formatThemeCss(pair), [pair]);
 
@@ -203,6 +233,15 @@ export function ThemeTester({ paletteColors }: { paletteColors: string[] }) {
         })}
       </div>
 
+      <div className="flex flex-col gap-1.5">
+        <ColorStrip
+          label={`Neutrals · derived from the palette`}
+          colors={neutralHexes}
+          value={pair[mode][role]}
+          onChange={assign}
+        />
+      </div>
+
       <div className="flex items-end gap-2">
         <ColorStrip
           label={`${activeRole?.label ?? "Role"} · ${mode}`}
@@ -222,7 +261,7 @@ export function ThemeTester({ paletteColors }: { paletteColors: string[] }) {
 
       <button
         type="button"
-        onClick={() => setPair(suggestThemePair(paletteColors))}
+        onClick={() => setPair(suggestThemePair(paletteColors, neutralHexes))}
         className="cursor-pointer self-start rounded-full border border-zinc-300 px-3 py-1 text-[11px] font-medium text-zinc-600 transition hover:bg-zinc-100 active:scale-95 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-surface-hover"
       >
         Re-suggest from palette

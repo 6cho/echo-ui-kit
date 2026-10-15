@@ -24,9 +24,9 @@ export function PalettePreviewBar({
   title?: string;
 }) {
   return (
-    // Centred rather than spread: once the strip stops growing, the leftover width goes to the
-    // sides instead of stranding the button at the far end of a wide panel.
-    <div className="flex items-center justify-center gap-3 rounded-lg border border-black/10 p-2 dark:border-white/10">
+    // The palette to one end and the button to the other, which is the order they are used in:
+    // here is what you have, here is what to do with it.
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-black/10 p-2 dark:border-white/10">
       <div
         className="flex h-8 min-w-0 flex-1 overflow-hidden rounded-md border border-black/10 dark:border-white/10"
         // Grows to fill a narrow panel and stops at one square per color. Capping the strip and
