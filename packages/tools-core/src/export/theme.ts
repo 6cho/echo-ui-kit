@@ -1,5 +1,5 @@
 import { contrastRatio } from "../color/contrast";
-import { toOklch } from "../color/convert";
+import { toHex, toOklch } from "../color/convert";
 import { NEUTRAL_SCALE } from "../color/neutral";
 
 export type ThemeRoleId =
@@ -9,7 +9,8 @@ export type ThemeRoleId =
   | "text"
   | "muted"
   | "primary"
-  | "onPrimary";
+  | "onPrimary"
+  | "secondary";
 
 export interface ThemeRole {
   id: ThemeRoleId;
@@ -21,9 +22,9 @@ export interface ThemeRole {
   against?: ThemeRoleId;
 }
 
-// Deliberately small. These seven cover a real interface — page, card, divider, body copy,
-// secondary copy, the accent, and what sits on the accent — and every one you add is another
-// decision to make twice, once per mode.
+// Deliberately small. These eight cover a real interface — page, card, divider, body copy,
+// secondary copy, the accent, what sits on the accent, and a second accent — and every one you
+// add is another decision to make twice, once per mode.
 export const THEME_ROLES: ThemeRole[] = [
   { id: "background", label: "Background", hint: "The page itself" },
   { id: "surface", label: "Surface", hint: "Cards and panels on it" },
@@ -41,6 +42,15 @@ export const THEME_ROLES: ThemeRole[] = [
     label: "On primary",
     hint: "Text on the accent",
     against: "primary",
+  },
+  // The second of the palette's colours to reach the interface. Without it a theme built from a
+  // three-hue palette shows one hue and its tints — the palette might as well have been one
+  // colour. Checked against the surface because it carries the secondary button's label.
+  {
+    id: "secondary",
+    label: "Secondary",
+    hint: "A second accent",
+    against: "surface",
   },
 ];
 
@@ -64,9 +74,132 @@ const MUTED_TARGET_CONTRAST = 4.5;
 // Text on the accent has the same job as body copy, so it answers to the same threshold.
 const ON_ACCENT_MIN_CONTRAST = 4.5;
 
+// What makes a palette colour a candidate for the second accent: far enough round the wheel from
+// the first to read as a different colour rather than a variation of it, and colourful enough to
+// be an accent at all — the palette's near-whites and near-blacks are neither.
+const SECONDARY_MIN_HUE_DISTANCE = 40;
+const SECONDARY_MIN_CHROMA = 0.04;
+// When a palette has no second hue (monochrome, or a single colour), the companion is made by
+// rotating the accent this far: plainly a different colour, short of the direct complement,
+// which reads as a clash rather than a partner.
+const SECONDARY_FALLBACK_SHIFT = 150;
+// The secondary button's label is small text, so it answers to the body-copy threshold.
+const SECONDARY_MIN_CONTRAST = 4.5;
+// The band a palette entry has to sit in to be *seen* as its hue. A scale's darkest and lightest
+// steps clear contrast easily, by being nearly black or nearly white — and then read as black or
+// white, which is no second colour at all. Inside this band the hue is unmistakable.
+const SECONDARY_MIN_LIGHTNESS = 0.32;
+const SECONDARY_MAX_LIGHTNESS = 0.85;
+const SECONDARY_VIVID_CHROMA = 0.08;
+
 export interface ThemePair {
   light: ThemeMapping;
   dark: ThemeMapping;
+}
+
+function lightnessOf(hex: string): number {
+  try {
+    return toOklch(hex).l;
+  } catch {
+    return 0.5;
+  }
+}
+
+function hueOf(hex: string): number {
+  try {
+    return toOklch(hex).h ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Distance between two hues the short way round the wheel. */
+function hueDistance(a: number, b: number): number {
+  const difference = Math.abs(a - b) % 360;
+  return difference > 180 ? 360 - difference : difference;
+}
+
+/**
+ * The palette's second accent, as it appears in one mode.
+ *
+ * Taken from the palette where it can be: the most colourful entry whose hue is well away from the
+ * accent's and which already reads on this mode's surface. A palette of scales usually has one —
+ * a light step of the second hue for dark mode, a dark step for light — and using it as-is means
+ * the theme is showing a colour you actually picked, not one derived beside it.
+ *
+ * Failing that the hue still comes from the palette, the entry furthest round the wheel from the
+ * accent, walked in lightness until it reads. Only a palette with no second hue at all falls back
+ * to a rotation of the accent.
+ */
+function secondaryFor(
+  colors: string[],
+  accent: string,
+  surface: string,
+  mode: "light" | "dark",
+): string {
+  const accentHue = hueOf(accent);
+  const candidates = colors
+    .filter((hex) => chromaOf(hex) >= SECONDARY_MIN_CHROMA)
+    .map((hex) => ({
+      hex,
+      chroma: chromaOf(hex),
+      lightness: lightnessOf(hex),
+      distance: hueDistance(hueOf(hex), accentHue),
+      ratio: contrastRatio(hex, surface),
+    }))
+    .filter((entry) => entry.distance >= SECONDARY_MIN_HUE_DISTANCE);
+
+  // Used as-is only if it reads on the surface *and* still looks like its colour while doing it.
+  const ready = candidates
+    .filter(
+      (entry) =>
+        entry.ratio >= SECONDARY_MIN_CONTRAST &&
+        entry.chroma >= SECONDARY_VIVID_CHROMA &&
+        entry.lightness >= SECONDARY_MIN_LIGHTNESS &&
+        entry.lightness <= SECONDARY_MAX_LIGHTNESS,
+    )
+    .sort((a, b) => b.chroma - a.chroma)[0];
+  if (ready) return ready.hex;
+
+  const furthest = [...candidates].sort(
+    (a, b) => b.distance - a.distance || b.chroma - a.chroma,
+  )[0];
+  const hue = furthest
+    ? hueOf(furthest.hex)
+    : (accentHue + SECONDARY_FALLBACK_SHIFT) % 360;
+  const chroma = Math.min(
+    0.18,
+    Math.max(0.1, furthest ? furthest.chroma : chromaOf(accent)),
+  );
+  return walkToContrast(hue, chroma, surface, mode);
+}
+
+/**
+ * A colour at a given hue, walked away from the surface in lightness until it reads on it —
+ * darker on a pale card, lighter on a dark one. Hue and chroma are held, so it stays the colour
+ * it was chosen to be.
+ */
+function walkToContrast(
+  hue: number,
+  chroma: number,
+  surface: string,
+  mode: "light" | "dark",
+): string {
+  const step = mode === "light" ? -0.02 : 0.02;
+  for (
+    let lightness = mode === "light" ? 0.58 : 0.7;
+    lightness > 0.15 && lightness < 0.97;
+    lightness += step
+  ) {
+    const hex = toHex({ mode: "oklch", l: lightness, c: chroma, h: hue });
+    if (contrastRatio(hex, surface) >= SECONDARY_MIN_CONTRAST) return hex;
+  }
+  return toHex({
+    mode: "oklch",
+    l: mode === "light" ? 0.3 : 0.9,
+    c: chroma,
+    h: hue,
+  });
 }
 
 function chromaOf(hex: string): number {
@@ -109,6 +242,7 @@ const NEUTRAL_ROLES: Record<
 export function suggestThemePair(
   palette: string[],
   neutrals: string[],
+  preferredAccent?: string | null,
 ): ThemePair {
   const colors = palette.length > 0 ? palette : ["#ffffff", "#18181b"];
   const ramp = neutrals.length > 0 ? neutrals : ["#ffffff", "#18181b"];
@@ -120,7 +254,11 @@ export function suggestThemePair(
     return ramp[clamped] as string;
   };
 
-  const accent = paletteAccent(colors) ?? (colors[0] as string);
+  // The base colour when the caller has one. Picking the most saturated entry instead sounds
+  // reasonable and is wrong: a triadic harmony off a red base contains a blue with more chroma than
+  // the red, and the theme's primary came out blue while everything that drove it said red.
+  const accent =
+    preferredAccent ?? paletteAccent(colors) ?? (colors[0] as string);
 
   const forMode = (mode: "light" | "dark"): ThemeMapping => {
     const steps = NEUTRAL_ROLES[mode];
@@ -153,6 +291,7 @@ export function suggestThemePair(
       muted: mutedFor(atStep, mode, surface),
       primary: accent,
       onPrimary: onAccent,
+      secondary: secondaryFor(colors, accent, surface, mode),
     };
   };
 

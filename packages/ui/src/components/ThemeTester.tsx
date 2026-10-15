@@ -69,11 +69,15 @@ const ELEMENTS: Record<
       { property: "Primary text", role: "onPrimary" },
     ],
   },
+  // In the palette's second colour, outlined rather than filled so it reads as secondary to the
+  // primary button beside it. It used to borrow the card's border and body text, which made it the
+  // one element on screen that could not show a second hue — and with it, the preview of a
+  // three-colour palette showed one.
   secondaryButton: {
     label: "Secondary button",
     parts: [
-      { property: "Border", role: "border" },
-      { property: "Primary text", role: "text" },
+      { property: "Border", role: "secondary" },
+      { property: "Primary text", role: "secondary" },
     ],
   },
 };
@@ -193,8 +197,11 @@ function Preview({
               type="button"
               onClick={() => onSelect("secondaryButton", "border", mode)}
               title={title("secondaryButton", "Border")}
-              className={`cursor-pointer rounded border px-2 py-1 text-[11px] font-medium ${ring("secondaryButton", ["border", "text"])}`}
-              style={{ borderColor: mapping.border, color: mapping.text }}
+              className={`cursor-pointer rounded border px-2 py-1 text-[11px] font-medium ${ring("secondaryButton", ["secondary"])}`}
+              style={{
+                borderColor: mapping.secondary,
+                color: mapping.secondary,
+              }}
             >
               Secondary
             </button>
@@ -235,7 +242,7 @@ export function ThemeTester({
    * and the structure re-tints with them — and they lean toward the same colour the theme is
    * accented in rather than toward something worked out separately.
    */
-  const neutralSource = paletteAccent(paletteColors) ?? baseColor ?? "#71717a";
+  const neutralSource = baseColor ?? paletteAccent(paletteColors) ?? "#71717a";
   const neutrals = useMemo(
     () => deriveNeutrals(neutralSource, tint),
     [neutralSource, tint],
@@ -256,7 +263,7 @@ export function ThemeTester({
   );
 
   const [pair, setPair] = useState<ThemePair>(() =>
-    suggestThemePair(paletteColors, neutralHexes),
+    suggestThemePair(paletteColors, neutralHexes, baseColor),
   );
   const [mode, setMode] = useState<Mode>("light");
   const [element, setElement] = useState<PreviewElement>("primaryButton");
@@ -271,9 +278,10 @@ export function ThemeTester({
       suggestThemePair(
         paletteKey ? paletteKey.split(",") : [],
         neutralKey ? neutralKey.split(",") : [],
+        baseColor,
       ),
     );
-  }, [paletteKey, neutralKey]);
+  }, [paletteKey, neutralKey, baseColor]);
 
   const css = useMemo(() => formatThemeCss(pair), [pair]);
 
@@ -489,7 +497,9 @@ export function ThemeTester({
 
       <button
         type="button"
-        onClick={() => setPair(suggestThemePair(paletteColors, neutralHexes))}
+        onClick={() =>
+          setPair(suggestThemePair(paletteColors, neutralHexes, baseColor))
+        }
         className="cursor-pointer self-start rounded-full border border-zinc-300 px-3 py-1 text-[11px] font-medium text-zinc-600 transition hover:bg-zinc-100 active:scale-95 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-surface-hover"
       >
         Re-suggest from palette
