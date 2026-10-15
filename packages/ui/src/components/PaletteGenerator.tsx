@@ -1026,7 +1026,10 @@ export function PaletteGenerator({
             </div>
           )}
 
-          {paletteSource === "harmony" && (
+          {/* Gone entirely for a grey base rather than shown disabled: there is only one harmony
+              it can have, and the description beside the wheel already names it. A picker with
+              one possible value is not a choice. */}
+          {paletteSource === "harmony" && !isBaseGrayscale && (
             <div className="flex flex-col gap-1.5">
               <SectionLabel>Harmony</SectionLabel>
               <div className="flex items-stretch gap-2">
@@ -1036,13 +1039,7 @@ export function PaletteGenerator({
                     onChange={(e) =>
                       setChosenHarmony(e.target.value as HarmonyType)
                     }
-                    disabled={isBaseGrayscale}
-                    title={
-                      isBaseGrayscale
-                        ? "A gray has no hue to build other harmonies from"
-                        : undefined
-                    }
-                    className="clay-inset h-full w-full cursor-pointer appearance-none disabled:cursor-not-allowed disabled:opacity-60 rounded-lg bg-zinc-100 py-1.5 pr-8 pl-2.5 text-xs font-medium text-zinc-900 outline-none focus:border-brand-500 dark:border-white/10 dark:bg-surface-elevated dark:text-zinc-100"
+                    className="clay-inset h-full w-full cursor-pointer appearance-none rounded-lg bg-zinc-100 py-1.5 pr-8 pl-2.5 text-xs font-medium text-zinc-900 outline-none focus:border-brand-500 dark:border-white/10 dark:bg-surface-elevated dark:text-zinc-100"
                   >
                     {HARMONY_TYPES.map((type) => (
                       <option key={type} value={type}>
@@ -1057,13 +1054,8 @@ export function PaletteGenerator({
                 <button
                   type="button"
                   onClick={randomizeHarmony}
-                  disabled={isBaseGrayscale}
-                  title={
-                    isBaseGrayscale
-                      ? "A gray has no hue to build other harmonies from"
-                      : "Pick a random harmony"
-                  }
-                  className="flex shrink-0 cursor-pointer items-center disabled:cursor-not-allowed disabled:opacity-40 justify-center rounded-lg border border-black/10 px-2.5 text-zinc-600 transition hover:bg-zinc-100 active:scale-95 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-surface-elevated"
+                  title="Pick a random harmony"
+                  className="flex shrink-0 cursor-pointer items-center justify-center rounded-lg border border-black/10 px-2.5 text-zinc-600 transition hover:bg-zinc-100 active:scale-95 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-surface-elevated"
                 >
                   <svg
                     viewBox="0 0 24 24"
