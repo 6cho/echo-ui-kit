@@ -424,28 +424,6 @@ export function ThemeTester({
         </div>
       )}
 
-      <div className="flex flex-col gap-1.5">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-          Editing
-        </span>
-        <div className="flex gap-1 clay-inset rounded-lg bg-zinc-100 p-1 dark:bg-surface-elevated">
-          {(["light", "dark"] as Mode[]).map((id) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setMode(id)}
-              className={`flex-1 cursor-pointer rounded-md px-2 py-1 text-xs font-medium capitalize transition active:scale-95 ${
-                mode === id
-                  ? "clay bg-white text-zinc-900 dark:bg-zinc-700 dark:text-white"
-                  : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
-              }`}
-            >
-              {id}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Six rows and then it scrolls. The list is a way to reach a role, not the thing being
           looked at — the previews above are — and at full height it pushed them off the top of a
           panel. Sized from the rows rather than guessed so it lands on a boundary instead of
