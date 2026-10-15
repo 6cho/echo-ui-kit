@@ -91,6 +91,12 @@ const SECONDARY_MIN_CONTRAST = 4.5;
 const SECONDARY_MIN_LIGHTNESS = 0.32;
 const SECONDARY_MAX_LIGHTNESS = 0.85;
 const SECONDARY_VIVID_CHROMA = 0.08;
+// The most colour a derived secondary is given, so a derived one never outshouts the palette's own.
+const SECONDARY_MAX_CHROMA = 0.18;
+// Below this a palette has no colour to speak of — black, white and greys — and its secondary is a
+// grey too. Matches the point at which the palette tool itself warns that a base colour has
+// little to no saturation (LOW_CHROMA_THRESHOLD in PaletteGenerator).
+const ACHROMATIC_CHROMA = 0.02;
 
 export interface ThemePair {
   light: ThemeMapping;
@@ -164,14 +170,29 @@ function secondaryFor(
   const furthest = [...candidates].sort(
     (a, b) => b.distance - a.distance || b.chroma - a.chroma,
   )[0];
-  const hue = furthest
-    ? hueOf(furthest.hex)
-    : (accentHue + SECONDARY_FALLBACK_SHIFT) % 360;
-  const chroma = Math.min(
-    0.18,
-    Math.max(0.1, furthest ? furthest.chroma : chromaOf(accent)),
+  if (furthest) {
+    return walkToContrast(
+      hueOf(furthest.hex),
+      Math.min(SECONDARY_MAX_CHROMA, furthest.chroma),
+      surface,
+      mode,
+    );
+  }
+
+  // No second hue anywhere in the palette. How colourful the companion is comes from the palette
+  // as a whole rather than from a floor picked here: a muted palette gets a muted partner, and a
+  // palette of black and white gets a grey. Rotating the hue of something with no hue and then
+  // forcing it to be saturated is how a black-and-white palette used to come out with a green.
+  const paletteChroma = Math.max(0, ...colors.map(chromaOf));
+  if (paletteChroma < ACHROMATIC_CHROMA) {
+    return walkToContrast(0, 0, surface, mode);
+  }
+  return walkToContrast(
+    (accentHue + SECONDARY_FALLBACK_SHIFT) % 360,
+    Math.min(SECONDARY_MAX_CHROMA, paletteChroma),
+    surface,
+    mode,
   );
-  return walkToContrast(hue, chroma, surface, mode);
 }
 
 /**
