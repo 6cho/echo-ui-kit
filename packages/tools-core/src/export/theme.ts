@@ -74,31 +74,23 @@ const MUTED_TARGET_CONTRAST = 4.5;
 // Text on the accent has the same job as body copy, so it answers to the same threshold.
 const ON_ACCENT_MIN_CONTRAST = 4.5;
 
-// What makes a palette colour a candidate for the second accent: far enough round the wheel from
-// the first to read as a different colour rather than a variation of it, and colourful enough to
-// be an accent at all — the palette's near-whites and near-blacks are neither.
+// Far enough round the wheel from the primary to read as a different colour rather than a
+// variation of it. A colour duller than SECONDARY_MIN_CHROMA has no hue worth measuring — near
+// greys report whatever hue fell out of the conversion — so it never counts as a second hue.
 const SECONDARY_MIN_HUE_DISTANCE = 40;
 const SECONDARY_MIN_CHROMA = 0.04;
-// When a palette has no second hue (monochrome, or a single colour), the companion is made by
-// rotating the accent this far: plainly a different colour, short of the direct complement,
-// which reads as a clash rather than a partner.
-const SECONDARY_FALLBACK_SHIFT = 150;
 // The secondary button's label is small text, so it answers to the body-copy threshold.
 const SECONDARY_MIN_CONTRAST = 4.5;
 // The band a palette entry has to sit in to be *seen* as its hue. A scale's darkest and lightest
 // steps clear contrast easily, by being nearly black or nearly white — and then read as black or
-// white, which is no second colour at all. Inside this band the hue is unmistakable.
-const SECONDARY_MIN_LIGHTNESS = 0.32;
+// white, which is no second colour at all. Inside this band the hue is unmistakable. The floor
+// sits low enough to keep a deep, saturated shade — a scale's 700 of purple is L 0.30 and plainly
+// purple — while the 800s and 900s below it read as black.
+const SECONDARY_MIN_LIGHTNESS = 0.25;
 const SECONDARY_MAX_LIGHTNESS = 0.85;
-const SECONDARY_VIVID_CHROMA = 0.08;
-// The most colour a derived secondary is given, so a derived one never outshouts the palette's own.
-const SECONDARY_MAX_CHROMA = 0.18;
-// Below this a palette has no colour to speak of — black, white and greys — and its secondary is a
-// grey too. Matches the point at which the palette tool itself warns that a base colour has
-// little to no colour. This works on colours rather than on a slider, so it is a chroma figure;
-// the palette tool locks anything under 5% saturation to exact grey before it ever gets here,
-// so a palette built there arrives either plainly coloured or with no chroma at all.
-const ACHROMATIC_CHROMA = 0.02;
+// How far in lightness a shade of the primary's own hue has to sit from it to read as a different
+// shade rather than a near-twin of the primary button beside it.
+const SECONDARY_MIN_SHADE_GAP = 0.12;
 
 export interface ThemePair {
   light: ThemeMapping;
@@ -128,16 +120,24 @@ function hueDistance(a: number, b: number): number {
 }
 
 /**
- * The palette's second accent, as it appears in one mode.
+ * The palette's second accent, as it appears in one mode — always one of the palette's own colours.
  *
- * Taken from the palette where it can be: the most colourful entry whose hue is well away from the
- * accent's and which already reads on this mode's surface. A palette of scales usually has one —
- * a light step of the second hue for dark mode, a dark step for light — and using it as-is means
- * the theme is showing a colour you actually picked, not one derived beside it.
+ * It used to invent one when the palette had no second hue, by rotating the primary round the
+ * wheel, which put a yellow secondary on a monochrome purple palette: a colour nobody picked,
+ * presented as part of their theme. A theme is a reading of a palette, not an addition to it.
  *
- * Failing that the hue still comes from the palette, the entry furthest round the wheel from the
- * accent, walked in lightness until it reads. Only a palette with no second hue at all falls back
- * to a rotation of the accent.
+ * So it ranks what the palette has: a different hue first, since that is what a second accent is
+ * for; then an entry that is visibly a colour rather than near-black or near-white; then, for a
+ * shade of the primary's own hue, one far enough from it in lightness to read as a different
+ * shade; then the most colourful. It once ranked same-hue shades by how far they sat from the
+ * primary, which walks straight to the extremes — a monochrome purple's secondary came out as its
+ * 900, which is black to look at.
+ *
+ * The first entry in that order that both reads on this mode's surface and is visibly its colour
+ * is used as it is. Otherwise the best of them is walked in lightness until it reads — its hue and
+ * chroma are still the palette's, only its lightness moves — because a shade you can see is purple
+ * beats a palette entry that is technically purple and looks black. A palette with nothing but the
+ * primary in it gets a shade of the primary, there being nothing else in it to use.
  */
 function secondaryFor(
   colors: string[],
@@ -146,55 +146,49 @@ function secondaryFor(
   mode: "light" | "dark",
 ): string {
   const accentHue = hueOf(accent);
-  const candidates = colors
-    .filter((hex) => chromaOf(hex) >= SECONDARY_MIN_CHROMA)
-    .map((hex) => ({
-      hex,
-      chroma: chromaOf(hex),
-      lightness: lightnessOf(hex),
-      distance: hueDistance(hueOf(hex), accentHue),
-      ratio: contrastRatio(hex, surface),
-    }))
-    .filter((entry) => entry.distance >= SECONDARY_MIN_HUE_DISTANCE);
+  const accentLightness = lightnessOf(accent);
+  const others = colors
+    .filter((hex) => hex.toLowerCase() !== accent.toLowerCase())
+    .map((hex) => {
+      const chroma = chromaOf(hex);
+      const distance =
+        chroma >= SECONDARY_MIN_CHROMA ? hueDistance(hueOf(hex), accentHue) : 0;
+      const lightness = lightnessOf(hex);
+      const isOtherHue = distance >= SECONDARY_MIN_HUE_DISTANCE;
+      return {
+        hex,
+        chroma,
+        lightness,
+        isOtherHue,
+        isDistinct:
+          isOtherHue ||
+          Math.abs(lightness - accentLightness) >= SECONDARY_MIN_SHADE_GAP,
+        isVisible:
+          lightness >= SECONDARY_MIN_LIGHTNESS &&
+          lightness <= SECONDARY_MAX_LIGHTNESS,
+        ratio: contrastRatio(hex, surface),
+      };
+    });
 
-  // Used as-is only if it reads on the surface *and* still looks like its colour while doing it.
-  const ready = candidates
-    .filter(
-      (entry) =>
-        entry.ratio >= SECONDARY_MIN_CONTRAST &&
-        entry.chroma >= SECONDARY_VIVID_CHROMA &&
-        entry.lightness >= SECONDARY_MIN_LIGHTNESS &&
-        entry.lightness <= SECONDARY_MAX_LIGHTNESS,
-    )
-    .sort((a, b) => b.chroma - a.chroma)[0];
+  if (others.length === 0) {
+    return walkToContrast(accentHue, chromaOf(accent), surface, mode);
+  }
+
+  type Candidate = (typeof others)[number];
+  const better = (a: Candidate, b: Candidate): number =>
+    Number(b.isOtherHue) - Number(a.isOtherHue) ||
+    Number(b.isVisible) - Number(a.isVisible) ||
+    Number(b.isDistinct) - Number(a.isDistinct) ||
+    b.chroma - a.chroma;
+  const ranked = [...others].sort(better);
+
+  const ready = ranked.find(
+    (entry) => entry.isVisible && entry.ratio >= SECONDARY_MIN_CONTRAST,
+  );
   if (ready) return ready.hex;
 
-  const furthest = [...candidates].sort(
-    (a, b) => b.distance - a.distance || b.chroma - a.chroma,
-  )[0];
-  if (furthest) {
-    return walkToContrast(
-      hueOf(furthest.hex),
-      Math.min(SECONDARY_MAX_CHROMA, furthest.chroma),
-      surface,
-      mode,
-    );
-  }
-
-  // No second hue anywhere in the palette. How colourful the companion is comes from the palette
-  // as a whole rather than from a floor picked here: a muted palette gets a muted partner, and a
-  // palette of black and white gets a grey. Rotating the hue of something with no hue and then
-  // forcing it to be saturated is how a black-and-white palette used to come out with a green.
-  const paletteChroma = Math.max(0, ...colors.map(chromaOf));
-  if (paletteChroma < ACHROMATIC_CHROMA) {
-    return walkToContrast(0, 0, surface, mode);
-  }
-  return walkToContrast(
-    (accentHue + SECONDARY_FALLBACK_SHIFT) % 360,
-    Math.min(SECONDARY_MAX_CHROMA, paletteChroma),
-    surface,
-    mode,
-  );
+  const best = ranked[0] as Candidate;
+  return walkToContrast(hueOf(best.hex), best.chroma, surface, mode);
 }
 
 /**
