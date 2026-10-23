@@ -15,7 +15,6 @@ import {
   wcagLevel,
 } from "@echo-ui-kit/tools-core";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ColorStrip } from "./ColorStrip";
 import { CssOutput } from "./CssOutput";
 import { Slider } from "./Slider";
 import { ToolColumns } from "./ToolColumns";
@@ -209,6 +208,73 @@ function startingColor(key: ComponentKey, mapping: ThemeMapping): string {
 }
 
 /** A small on/off switch, sized to sit at the end of a property row. */
+/**
+ * The colour selector: the palette as one bar spanning its container, every colour a square
+ * except the one in use, which stretches to fill the rest from wherever it sits in the palette.
+ *
+ * The stretched segment shows the colour as it now is, so adjusting it visibly changes that entry
+ * of the palette rather than a swatch off to one side — and it is the place to pick any colour
+ * at all, since clicking it opens the system colour picker. A colour that came from none of the
+ * palette's entries gets a stretched segment of its own at the end.
+ */
+function PaletteSelector({
+  label,
+  colors,
+  activeIndex,
+  activeHex,
+  onPick,
+  onCustom,
+}: {
+  label: string;
+  colors: string[];
+  activeIndex: number;
+  activeHex: string;
+  onPick: (hex: string, index: number) => void;
+  onCustom: (hex: string) => void;
+}) {
+  const shown =
+    activeIndex < colors.length
+      ? colors.map((hex, index) => (index === activeIndex ? activeHex : hex))
+      : [...colors, activeHex];
+
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <span className="text-[11px] text-zinc-500">{label}</span>
+      <div className="flex h-7 overflow-hidden rounded-md border border-black/10 dark:border-white/10">
+        {shown.map((hex, index) =>
+          index === activeIndex ? (
+            <label
+              // biome-ignore lint/suspicious/noArrayIndexKey: a segment is a position in the palette — the same hex can appear twice
+              key={index}
+              title="Pick any colour"
+              style={{ backgroundColor: hex, flexGrow: 1 }}
+              className="relative min-w-7 basis-7 cursor-pointer transition-[flex-grow,background-color] duration-300 ease-out"
+            >
+              <input
+                type="color"
+                aria-label={`${label} — pick any colour`}
+                value={hex}
+                onChange={(event) => onCustom(event.target.value)}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              />
+            </label>
+          ) : (
+            <button
+              // biome-ignore lint/suspicious/noArrayIndexKey: a segment is a position in the palette — the same hex can appear twice
+              key={index}
+              type="button"
+              onClick={() => onPick(hex, index)}
+              title={hex}
+              style={{ backgroundColor: hex, flexGrow: 0 }}
+              className="w-7 shrink-0 basis-7 cursor-pointer transition-[flex-grow,background-color] duration-300 ease-out hover:brightness-110 active:brightness-125"
+            />
+          ),
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Switch({
   checked,
   label,
@@ -658,6 +724,7 @@ export function ThemeTester({
       ),
     );
     setComponentColors({ light: {}, dark: {} });
+    setSlots({});
   }, [paletteKey, neutralKey, baseColor]);
 
   /** Every switched-on component colour as it currently resolves, per mode. */
@@ -786,7 +853,18 @@ export function ThemeTester({
   function adjust(next: { h: number; s: number; l: number }) {
     const hex = fromHsl(next);
     setHeld({ key: adjustKey, hex, ...next });
+    pinSlot();
     assign(hex);
+  }
+
+  /**
+   * Keeps the selector stretching the entry the colour started from once it is changed away from
+   * it — otherwise the first nudge would match no entry and jump to a segment of its own.
+   */
+  function pinSlot() {
+    setSlots((current) =>
+      adjustKey in current ? current : { ...current, [adjustKey]: activeIndex },
+    );
   }
 
   function assign(hex: string) {
@@ -814,6 +892,17 @@ export function ThemeTester({
       "#000000",
     ]),
   ];
+
+  // Which palette entry the colour being edited came from, per mode and target, so the selector
+  // keeps stretching that entry while it is adjusted away from its original hex. Until one has
+  // been picked here it is whichever entry the colour matches, or a segment of its own after them.
+  const [slots, setSlots] = useState<Record<string, number>>({});
+  const activeIndex = (() => {
+    const stored = slots[adjustKey];
+    if (stored !== undefined && stored < options.length) return stored;
+    const match = options.indexOf(currentHex.toLowerCase());
+    return match >= 0 ? match : options.length;
+  })();
 
   /** One row of the element panel: a swatch, a name, a note and a value. */
   const row = (
@@ -984,22 +1073,20 @@ export function ThemeTester({
         </div>
       )}
 
-      <div className="flex items-end gap-2">
-        <ColorStrip
-          label={`${mode} mode / ${ELEMENTS[element].label} / ${targetProperty ?? ""}`}
-          colors={options}
-          value={currentHex}
-          onChange={assign}
-        />
-        <input
-          type="color"
-          aria-label="Role color"
-          value={currentHex}
-          onChange={(e) => assign(e.target.value)}
-          title="Pick any color"
-          className="h-7 w-7 shrink-0 cursor-pointer rounded-md border border-black/20 dark:border-white/20"
-        />
-      </div>
+      <PaletteSelector
+        label={`${mode} mode / ${ELEMENTS[element].label} / ${targetProperty ?? ""}`}
+        colors={options}
+        activeIndex={activeIndex}
+        activeHex={currentHex}
+        onPick={(hex, index) => {
+          setSlots((current) => ({ ...current, [adjustKey]: index }));
+          assign(hex);
+        }}
+        onCustom={(hex) => {
+          pinSlot();
+          assign(hex);
+        }}
+      />
 
       {/* Fine-tuning for whatever colour is picked above, the same three sliders the palette
           tool adjusts its base with. */}
@@ -1047,6 +1134,7 @@ export function ThemeTester({
         onClick={() => {
           setPair(suggestThemePair(paletteColors, neutralHexes, baseColor));
           setComponentColors({ light: {}, dark: {} });
+          setSlots({});
         }}
         className="cursor-pointer self-start rounded-full border border-zinc-300 px-3 py-1 text-[11px] font-medium text-zinc-600 transition hover:bg-zinc-100 active:scale-95 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-surface-hover"
       >
