@@ -4,19 +4,17 @@ import {
   DEFAULT_NEUTRAL_TINT,
   deriveNeutrals,
   formatThemeCss,
-  fromHsl,
   paletteAccent,
   suggestThemePair,
   THEME_ROLES,
   type ThemeMapping,
   type ThemePair,
   type ThemeRoleId,
-  toHsl,
   wcagLevel,
 } from "@echo-ui-kit/tools-core";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ColorEditorModal } from "./ColorEditorModal";
 import { CssOutput } from "./CssOutput";
-import { Slider } from "./Slider";
 import { ToolColumns } from "./ToolColumns";
 
 type Mode = "light" | "dark";
@@ -208,73 +206,6 @@ function startingColor(key: ComponentKey, mapping: ThemeMapping): string {
 }
 
 /** A small on/off switch, sized to sit at the end of a property row. */
-/**
- * The colour selector: the palette as one bar spanning its container, every colour a square
- * except the one in use, which stretches to fill the rest from wherever it sits in the palette.
- *
- * The stretched segment shows the colour as it now is, so adjusting it visibly changes that entry
- * of the palette rather than a swatch off to one side — and it is the place to pick any colour
- * at all, since clicking it opens the system colour picker. A colour that came from none of the
- * palette's entries gets a stretched segment of its own at the end.
- */
-function PaletteSelector({
-  label,
-  colors,
-  activeIndex,
-  activeHex,
-  onPick,
-  onCustom,
-}: {
-  label: string;
-  colors: string[];
-  activeIndex: number;
-  activeHex: string;
-  onPick: (hex: string, index: number) => void;
-  onCustom: (hex: string) => void;
-}) {
-  const shown =
-    activeIndex < colors.length
-      ? colors.map((hex, index) => (index === activeIndex ? activeHex : hex))
-      : [...colors, activeHex];
-
-  return (
-    <div className="flex min-w-0 flex-col gap-1">
-      <span className="text-[11px] text-zinc-500">{label}</span>
-      <div className="flex h-7 overflow-hidden rounded-md border border-black/10 dark:border-white/10">
-        {shown.map((hex, index) =>
-          index === activeIndex ? (
-            <label
-              // biome-ignore lint/suspicious/noArrayIndexKey: a segment is a position in the palette — the same hex can appear twice
-              key={index}
-              title="Pick any colour"
-              style={{ backgroundColor: hex, flexGrow: 1 }}
-              className="relative min-w-7 basis-7 cursor-pointer transition-[flex-grow,background-color] duration-500 ease-fluid"
-            >
-              <input
-                type="color"
-                aria-label={`${label} — pick any colour`}
-                value={hex}
-                onChange={(event) => onCustom(event.target.value)}
-                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-              />
-            </label>
-          ) : (
-            <button
-              // biome-ignore lint/suspicious/noArrayIndexKey: a segment is a position in the palette — the same hex can appear twice
-              key={index}
-              type="button"
-              onClick={() => onPick(hex, index)}
-              title={hex}
-              style={{ backgroundColor: hex, flexGrow: 0 }}
-              className="w-7 shrink-0 basis-7 cursor-pointer transition-[flex-grow,background-color] duration-500 ease-fluid hover:brightness-110 active:brightness-125"
-            />
-          ),
-        )}
-      </div>
-    </div>
-  );
-}
-
 function Switch({
   checked,
   label,
@@ -688,6 +619,9 @@ export function ThemeTester({
   // Whether the selection is ringed in the previews. Cleared by a click anywhere outside them, so
   // the element can be seen bare while its colours are being tried.
   const [highlighted, setHighlighted] = useState(true);
+  // Whether the colour editor is open. Clicking an element in a preview, or one of its rows,
+  // opens it on that colour; clicking more of them retargets it.
+  const [isEditing, setIsEditing] = useState(false);
   const previewsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -800,6 +734,7 @@ export function ThemeTester({
     setTarget(nextTarget);
     setMode(nextMode);
     setHighlighted(true);
+    setIsEditing(true);
   }
 
   /** Switches a component colour on or off. Switching one on also selects it, ready to edit. */
@@ -809,6 +744,7 @@ export function ThemeTester({
     );
     if (on) {
       setTarget(key);
+      setIsEditing(true);
     } else if (target === key) {
       setTarget((ELEMENTS[element].parts[0] as { role: ThemeRoleId }).role);
     }
@@ -819,51 +755,18 @@ export function ThemeTester({
     : pair[mode][target];
 
   /**
-   * The colour being edited as hue, saturation and lightness, for the Adjust sliders. Held while
-   * dragging rather than read back from the hex each time: a grey has no hue, so dragging
-   * saturation down to zero and back up again would otherwise lose the hue it started with. Read
-   * afresh whenever the colour is changed some other way.
-   */
-  const [held, setHeld] = useState<{
-    key: string;
-    hex: string;
-    h: number;
-    s: number;
-    l: number;
-  } | null>(null);
-  const adjustKey = `${mode}:${target}`;
-  const hsl = useMemo(() => {
-    if (
-      held &&
-      held.key === adjustKey &&
-      held.hex.toLowerCase() === currentHex.toLowerCase()
-    ) {
-      return held;
-    }
-    try {
-      const color = toHsl(currentHex);
-      return { h: color.h ?? 0, s: color.s, l: color.l };
-    } catch {
-      return { h: 0, s: 0, l: 0 };
-    }
-  }, [held, adjustKey, currentHex]);
-
-  function adjust(next: { h: number; s: number; l: number }) {
-    const hex = fromHsl(next);
-    setHeld({ key: adjustKey, hex, ...next });
-    pinSlot();
-    assign(hex);
-  }
-
-  /**
    * Keeps the selector stretching the entry the colour started from once it is changed away from
    * it — otherwise the first nudge would match no entry and jump to a segment of its own.
    */
+  const adjustKey = `${mode}:${target}`;
   function pinSlot() {
     setSlots((current) =>
       adjustKey in current ? current : { ...current, [adjustKey]: activeIndex },
     );
   }
+
+  // Stable, so the editor's listeners aren't torn down and re-added on every render.
+  const closeEditor = useCallback(() => setIsEditing(false), []);
 
   function assign(hex: string) {
     if (isComponentKey(target)) {
@@ -941,7 +844,7 @@ export function ThemeTester({
         <p className="text-[11px] text-zinc-500">
           Click any part of a preview to customise the colours it uses.
         </p>
-        <div ref={previewsRef} className="flex gap-3">
+        <div ref={previewsRef} data-color-trigger className="flex gap-3">
           <Preview
             mapping={pair.light}
             components={components.light}
@@ -976,7 +879,7 @@ export function ThemeTester({
         <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
           {`${mode} mode / ${ELEMENTS[element].label}`}
         </span>
-        <div className="flex flex-col gap-1">
+        <div data-color-trigger className="flex flex-col gap-1">
           {PROPERTIES.map((property) => {
             const part = ELEMENTS[element].parts.find(
               (candidate) => candidate.property === property,
@@ -994,7 +897,10 @@ export function ThemeTester({
                       ? `Also on the ${alsoOn.join(", ")}`
                       : "Only here",
                     target === part.role,
-                    () => setTarget(part.role),
+                    () => {
+                      setTarget(part.role);
+                      setIsEditing(true);
+                    },
                   )}
                 </div>
               );
@@ -1013,7 +919,10 @@ export function ThemeTester({
                     components[mode][key] ?? "#000000",
                     "This element's own colour",
                     target === key,
-                    () => setTarget(key),
+                    () => {
+                      setTarget(key);
+                      setIsEditing(true);
+                    },
                   )}
                   <Switch
                     checked
@@ -1071,61 +980,24 @@ export function ThemeTester({
         </div>
       )}
 
-      <PaletteSelector
-        label={`${mode} mode / ${ELEMENTS[element].label} / ${targetProperty ?? ""}`}
+      <ColorEditorModal
+        open={isEditing}
+        title={`${mode} mode / ${ELEMENTS[element].label} / ${targetProperty ?? ""}`}
+        selectionKey={adjustKey}
         colors={options}
         activeIndex={activeIndex}
-        activeHex={currentHex}
+        value={currentHex}
+        anchor={previewsRef}
         onPick={(hex, index) => {
           setSlots((current) => ({ ...current, [adjustKey]: index }));
           assign(hex);
         }}
-        onCustom={(hex) => {
+        onChange={(hex) => {
           pinSlot();
           assign(hex);
         }}
+        onClose={closeEditor}
       />
-
-      {/* Fine-tuning for whatever colour is picked above, the same three sliders the palette
-          tool adjusts its base with. */}
-      <div className="flex flex-col gap-2.5">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-          Adjust
-        </span>
-        <Slider
-          label="Hue"
-          value={Math.round(hsl.h)}
-          min={0}
-          max={360}
-          step={1}
-          displayValue={`${Math.round(hsl.h)}°`}
-          trackBackground="linear-gradient(to right, hsl(0 100% 50%), hsl(60 100% 50%), hsl(120 100% 50%), hsl(180 100% 50%), hsl(240 100% 50%), hsl(300 100% 50%), hsl(360 100% 50%))"
-          thumbColor={currentHex}
-          onChange={(h) => adjust({ ...hsl, h })}
-        />
-        <Slider
-          label="Saturation"
-          value={Math.round(hsl.s * 100)}
-          min={0}
-          max={100}
-          step={1}
-          displayValue={`${Math.round(hsl.s * 100)}%`}
-          trackBackground={`linear-gradient(to right, hsl(${hsl.h} 0% ${hsl.l * 100}%), hsl(${hsl.h} 100% ${hsl.l * 100}%))`}
-          thumbColor={currentHex}
-          onChange={(value) => adjust({ ...hsl, s: value / 100 })}
-        />
-        <Slider
-          label="Lightness"
-          value={Math.round(hsl.l * 100)}
-          min={0}
-          max={100}
-          step={1}
-          displayValue={`${Math.round(hsl.l * 100)}%`}
-          trackBackground={`linear-gradient(to right, hsl(${hsl.h} ${hsl.s * 100}% 0%), hsl(${hsl.h} ${hsl.s * 100}% 50%), hsl(${hsl.h} ${hsl.s * 100}% 100%))`}
-          thumbColor={currentHex}
-          onChange={(value) => adjust({ ...hsl, l: value / 100 })}
-        />
-      </div>
 
       <button
         type="button"
