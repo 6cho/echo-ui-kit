@@ -82,10 +82,13 @@ interface Hsl {
  *
  * Floats at the top centre of the window — the page in the web app, the side panel in the
  * extension — rather than over a dimmed page, because the point of choosing a colour here is
- * watching what it does to something else, and a backdrop would hide exactly that. It leaves when Escape is pressed, when it is closed, or on any click outside
- * it — and that click only closes it. Letting it through as well would mean a click on another
- * preview element closed the editor and reopened it in the same motion, so it never seemed to
- * close at all.
+ * watching what it does to something else, and a backdrop would hide exactly that.
+ *
+ * It leaves when Escape is pressed, when it is closed, or on any click outside it, and that click
+ * only closes it. A transparent layer covers the window beneath the editor to catch it, so the
+ * click never reaches whatever it landed on. Listening on the document and trying to cancel the
+ * click afterwards proved unreliable: a click on a property row still went through and retargeted
+ * the editor instead of closing it.
  */
 export function ColorEditorModal({
   open,
@@ -163,121 +166,107 @@ export function ColorEditorModal({
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Element | null;
-      if (sheetRef.current?.contains(target)) return;
-      // Swallow the click this press is about to become, so it dismisses and does nothing else.
-      const swallow = (click: MouseEvent) => {
-        click.stopPropagation();
-        click.preventDefault();
-      };
-      document.addEventListener("click", swallow, {
-        capture: true,
-        once: true,
-      });
-      // A press that never becomes a click (a drag, say) mustn't leave the trap set for the next.
-      setTimeout(
-        () => document.removeEventListener("click", swallow, { capture: true }),
-        500,
-      );
-      onClose();
-    };
     document.addEventListener("keydown", onKey);
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.removeEventListener("pointerdown", onPointerDown);
-    };
+    return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
   if (!isMounted) return null;
 
   return (
-    <div
-      ref={sheetRef}
-      role="dialog"
-      aria-label={title}
-      // Centred with `translate`, which is its own property in Tailwind v4, so it composes with
-      // the entrance animation's transform rather than being overwritten by it.
-      className={`clay fixed top-3 left-1/2 z-40 flex w-[min(540px,calc(100vw-24px))] -translate-x-1/2 flex-col gap-7 rounded-3xl border border-black/10 bg-white p-6 sm:p-10 dark:border-white/10 dark:bg-surface-elevated ${
-        isLeaving ? "pointer-events-none animate-fade-out" : "animate-fade-in"
-      }`}
-    >
-      <div className="flex items-center gap-2">
-        <span
-          className="h-5 w-5 shrink-0 rounded-md border border-black/10 transition-colors dark:border-white/10"
-          style={{ backgroundColor: value }}
-        />
-        <span className="min-w-0 truncate text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-          {title}
-        </span>
-        <span className="ml-auto shrink-0 font-mono text-[11px] text-zinc-500">
-          {value.toLowerCase()}
-        </span>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close"
-          className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-800 active:scale-[0.94] dark:hover:bg-surface-hover dark:hover:text-zinc-200"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            className="h-3.5 w-3.5"
-            aria-hidden="true"
-          >
-            <path d="M6 6l12 12M18 6 6 18" />
-          </svg>
-        </button>
-      </div>
-
-      <PaletteSelector
-        label={title}
-        colors={colors}
-        activeIndex={activeIndex}
-        activeHex={value}
-        onPick={onPick}
-        onCustom={onChange}
+    <>
+      {/* Catches every click outside the editor. Invisible, so the previews stay in view; out of
+          the way while the editor fades, so a click then lands normally. */}
+      <div
+        aria-hidden="true"
+        onPointerDown={onClose}
+        className={`fixed inset-0 z-40 ${isLeaving ? "pointer-events-none" : ""}`}
       />
+      <div
+        ref={sheetRef}
+        role="dialog"
+        aria-label={title}
+        // Centred with `translate`, which is its own property in Tailwind v4, so it composes with
+        // the entrance animation's transform rather than being overwritten by it.
+        className={`clay fixed top-3 left-1/2 z-50 flex w-[min(540px,calc(100vw-24px))] -translate-x-1/2 flex-col gap-7 rounded-3xl border border-black/10 bg-white p-6 sm:p-10 dark:border-white/10 dark:bg-surface-elevated ${
+          isLeaving ? "pointer-events-none animate-fade-out" : "animate-fade-in"
+        }`}
+      >
+        <div className="flex items-center gap-2">
+          <span
+            className="h-5 w-5 shrink-0 rounded-md border border-black/10 transition-colors dark:border-white/10"
+            style={{ backgroundColor: value }}
+          />
+          <span className="min-w-0 truncate text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+            {title}
+          </span>
+          <span className="ml-auto shrink-0 font-mono text-[11px] text-zinc-500">
+            {value.toLowerCase()}
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-800 active:scale-[0.94] dark:hover:bg-surface-hover dark:hover:text-zinc-200"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              className="h-3.5 w-3.5"
+              aria-hidden="true"
+            >
+              <path d="M6 6l12 12M18 6 6 18" />
+            </svg>
+          </button>
+        </div>
 
-      <div className="flex flex-col gap-5">
-        <Slider
-          label="Hue"
-          value={Math.round(hsl.h)}
-          min={0}
-          max={360}
-          step={1}
-          displayValue={`${Math.round(hsl.h)}°`}
-          trackBackground="linear-gradient(to right, hsl(0 100% 50%), hsl(60 100% 50%), hsl(120 100% 50%), hsl(180 100% 50%), hsl(240 100% 50%), hsl(300 100% 50%), hsl(360 100% 50%))"
-          thumbColor={value}
-          onChange={(h) => adjust({ ...hsl, h })}
+        <PaletteSelector
+          label={title}
+          colors={colors}
+          activeIndex={activeIndex}
+          activeHex={value}
+          onPick={onPick}
+          onCustom={onChange}
         />
-        <Slider
-          label="Saturation"
-          value={Math.round(hsl.s * 100)}
-          min={0}
-          max={100}
-          step={1}
-          displayValue={`${Math.round(hsl.s * 100)}%`}
-          trackBackground={`linear-gradient(to right, hsl(${hsl.h} 0% ${hsl.l * 100}%), hsl(${hsl.h} 100% ${hsl.l * 100}%))`}
-          thumbColor={value}
-          onChange={(next) => adjust({ ...hsl, s: next / 100 })}
-        />
-        <Slider
-          label="Lightness"
-          value={Math.round(hsl.l * 100)}
-          min={0}
-          max={100}
-          step={1}
-          displayValue={`${Math.round(hsl.l * 100)}%`}
-          trackBackground={`linear-gradient(to right, hsl(${hsl.h} ${hsl.s * 100}% 0%), hsl(${hsl.h} ${hsl.s * 100}% 50%), hsl(${hsl.h} ${hsl.s * 100}% 100%))`}
-          thumbColor={value}
-          onChange={(next) => adjust({ ...hsl, l: next / 100 })}
-        />
+
+        <div className="flex flex-col gap-5">
+          <Slider
+            label="Hue"
+            value={Math.round(hsl.h)}
+            min={0}
+            max={360}
+            step={1}
+            displayValue={`${Math.round(hsl.h)}°`}
+            trackBackground="linear-gradient(to right, hsl(0 100% 50%), hsl(60 100% 50%), hsl(120 100% 50%), hsl(180 100% 50%), hsl(240 100% 50%), hsl(300 100% 50%), hsl(360 100% 50%))"
+            thumbColor={value}
+            onChange={(h) => adjust({ ...hsl, h })}
+          />
+          <Slider
+            label="Saturation"
+            value={Math.round(hsl.s * 100)}
+            min={0}
+            max={100}
+            step={1}
+            displayValue={`${Math.round(hsl.s * 100)}%`}
+            trackBackground={`linear-gradient(to right, hsl(${hsl.h} 0% ${hsl.l * 100}%), hsl(${hsl.h} 100% ${hsl.l * 100}%))`}
+            thumbColor={value}
+            onChange={(next) => adjust({ ...hsl, s: next / 100 })}
+          />
+          <Slider
+            label="Lightness"
+            value={Math.round(hsl.l * 100)}
+            min={0}
+            max={100}
+            step={1}
+            displayValue={`${Math.round(hsl.l * 100)}%`}
+            trackBackground={`linear-gradient(to right, hsl(${hsl.h} ${hsl.s * 100}% 0%), hsl(${hsl.h} ${hsl.s * 100}% 50%), hsl(${hsl.h} ${hsl.s * 100}% 100%))`}
+            thumbColor={value}
+            onChange={(next) => adjust({ ...hsl, l: next / 100 })}
+          />
+        </div>
       </div>
-    </div>
+    </>
   );
 }
