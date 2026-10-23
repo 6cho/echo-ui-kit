@@ -12,7 +12,7 @@ import {
   type ThemeRoleId,
   wcagLevel,
 } from "@echo-ui-kit/tools-core";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ColorStrip } from "./ColorStrip";
 import { CssOutput } from "./CssOutput";
 import { Slider } from "./Slider";
@@ -247,7 +247,9 @@ function Switch({
  *
  * The ring follows what is being edited rather than the element, so it lands on the heading while
  * the card's primary text is being edited and on the card itself while its background is. That
- * keeps the panel and the picture pointing at the same thing.
+ * keeps the panel and the picture pointing at the same thing. It only shows while the previews are
+ * what was last clicked: a ring sitting on a button while you try colours for it covers the edge
+ * you are trying to judge, so clicking anywhere else hides it and leaves the selection in place.
  *
  * The containers' hit areas are siblings of their contents rather than wrappers around them —
  * stretched behind, with the contents sitting above. A button inside a button is not valid HTML
@@ -261,6 +263,7 @@ function Preview({
   activeElement,
   activeTarget,
   activeMode,
+  highlighted,
   onSelect,
 }: {
   mapping: ThemeMapping;
@@ -271,10 +274,13 @@ function Preview({
   activeElement: PreviewElement;
   activeTarget: Target;
   activeMode: Mode;
+  /** Whether to ring the active element at all. */
+  highlighted: boolean;
   onSelect: (element: PreviewElement, target: Target, mode: Mode) => void;
 }) {
   /** Ringed when this is the element being edited and one of the things it shows is. */
   const ring = (element: PreviewElement, shows: Target[]) =>
+    highlighted &&
     activeMode === mode &&
     activeElement === element &&
     shows.includes(activeTarget)
@@ -633,6 +639,20 @@ export function ThemeTester({
   const [mode, setMode] = useState<Mode>("light");
   const [element, setElement] = useState<PreviewElement>("primaryButton");
   const [target, setTarget] = useState<Target>("primary");
+  // Whether the selection is ringed in the previews. Cleared by a click anywhere outside them, so
+  // the element can be seen bare while its colours are being tried.
+  const [highlighted, setHighlighted] = useState(true);
+  const previewsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      if (!previewsRef.current?.contains(event.target as Node)) {
+        setHighlighted(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, []);
   // Which component colours are switched on. Structural, so shared by both modes: a secondary
   // button that has a fill in light mode and none in dark would be two different components.
   const [enabled, setEnabled] = useState<ComponentKey[]>([]);
@@ -732,6 +752,7 @@ export function ThemeTester({
     setElement(next);
     setTarget(nextTarget);
     setMode(nextMode);
+    setHighlighted(true);
   }
 
   /** Switches a component colour on or off. Switching one on also selects it, ready to edit. */
@@ -815,7 +836,7 @@ export function ThemeTester({
         <p className="text-[11px] text-zinc-500">
           Click any part of a preview to customise the colours it uses.
         </p>
-        <div className="flex gap-3">
+        <div ref={previewsRef} className="flex gap-3">
           <Preview
             mapping={pair.light}
             components={components.light}
@@ -824,6 +845,7 @@ export function ThemeTester({
             activeElement={element}
             activeTarget={target}
             activeMode={mode}
+            highlighted={highlighted}
             onSelect={selectElement}
           />
           <Preview
@@ -834,6 +856,7 @@ export function ThemeTester({
             activeElement={element}
             activeTarget={target}
             activeMode={mode}
+            highlighted={highlighted}
             onSelect={selectElement}
           />
         </div>
