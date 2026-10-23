@@ -987,7 +987,6 @@ export function ThemeTester({
         colors={options}
         activeIndex={activeIndex}
         value={currentHex}
-        anchor={previewsRef}
         onPick={(hex, index) => {
           setSlots((current) => ({ ...current, [adjustKey]: index }));
           assign(hex);

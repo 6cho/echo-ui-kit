@@ -1,12 +1,5 @@
 import { fromHsl, toHsl } from "@echo-ui-kit/tools-core";
-import {
-  type RefObject,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Slider } from "./Slider";
 
 /**
@@ -84,10 +77,9 @@ interface Hsl {
  * palette's stretched segment, and hue, saturation and lightness for fine-tuning whatever was
  * picked.
  *
- * A floating sheet at the bottom of the window rather than a dialog over a dimmed page, because
- * the point of choosing a colour here is watching what it does to something else — a backdrop
- * would hide exactly that. It lines up with `anchor` horizontally so it reads as belonging to the
- * tool that opened it, and leaves when Escape is pressed, when it is closed, or when anything is
+ * Floats at the top centre of the window — the page in the web app, the side panel in the
+ * extension — rather than over a dimmed page, because the point of choosing a colour here is
+ * watching what it does to something else, and a backdrop would hide exactly that. It leaves when Escape is pressed, when it is closed, or when anything is
  * clicked that is neither the sheet nor marked `data-color-trigger` — the things that open it can
  * be clicked to retarget it without it closing in between.
  */
@@ -98,7 +90,6 @@ export function ColorEditorModal({
   colors,
   activeIndex,
   value,
-  anchor,
   onPick,
   onChange,
   onClose,
@@ -111,7 +102,6 @@ export function ColorEditorModal({
   /** Which of `colors` the value is, or came from; `colors.length` for none of them. */
   activeIndex: number;
   value: string;
-  anchor: RefObject<HTMLElement | null>;
   /** A palette entry picked outright. */
   onPick: (hex: string, index: number) => void;
   /** The colour changed some other way — the sliders, or the system picker. */
@@ -119,9 +109,6 @@ export function ColorEditorModal({
   onClose: () => void;
 }) {
   const sheetRef = useRef<HTMLDivElement>(null);
-  const [frame, setFrame] = useState<{ left: number; width: number } | null>(
-    null,
-  );
 
   // Held while dragging rather than read back from the hex each time: a grey has no hue, so
   // taking saturation to zero and back would otherwise lose the hue it started with. Read afresh
@@ -151,22 +138,6 @@ export function ColorEditorModal({
     onChange(hex);
   }
 
-  useLayoutEffect(() => {
-    if (!open) return;
-    const measure = () => {
-      const box = anchor.current?.getBoundingClientRect();
-      if (box) setFrame({ left: box.left, width: box.width });
-    };
-    measure();
-    const resizes = new ResizeObserver(measure);
-    if (anchor.current) resizes.observe(anchor.current);
-    window.addEventListener("resize", measure);
-    return () => {
-      resizes.disconnect();
-      window.removeEventListener("resize", measure);
-    };
-  }, [open, anchor]);
-
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
@@ -186,15 +157,16 @@ export function ColorEditorModal({
     };
   }, [open, onClose]);
 
-  if (!open || !frame) return null;
+  if (!open) return null;
 
   return (
     <div
       ref={sheetRef}
       role="dialog"
       aria-label={title}
-      className="clay fixed bottom-3 z-40 flex origin-bottom animate-popover-in-up flex-col gap-3 rounded-xl border border-black/10 bg-white p-3 dark:border-white/10 dark:bg-surface-elevated"
-      style={{ left: frame.left, width: frame.width }}
+      // Centred with `translate`, which is its own property in Tailwind v4, so it composes with
+      // the entrance animation's transform rather than being overwritten by it.
+      className="clay fixed top-3 left-1/2 z-40 flex w-[min(440px,calc(100vw-24px))] -translate-x-1/2 origin-top animate-popover-in flex-col gap-3 rounded-xl border border-black/10 bg-white p-3 dark:border-white/10 dark:bg-surface-elevated"
     >
       <div className="flex items-center gap-2">
         <span
