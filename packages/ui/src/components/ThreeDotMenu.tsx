@@ -49,7 +49,7 @@ export function ThreeDotMenu({ items }: { items: MenuItem[] }) {
         title="More actions"
         aria-haspopup="menu"
         aria-expanded={isOpen}
-        className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-zinc-500 transition hover:bg-zinc-200 active:scale-90 dark:text-zinc-300 dark:hover:bg-surface-hover"
+        className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-zinc-500 transition hover:bg-zinc-200 active:scale-[0.94] dark:text-zinc-300 dark:hover:bg-surface-hover"
       >
         <svg
           viewBox="0 0 24 24"
@@ -67,7 +67,9 @@ export function ThreeDotMenu({ items }: { items: MenuItem[] }) {
       {isOpen && (
         <div
           className={`absolute right-0 z-20 flex w-36 flex-col overflow-hidden clay rounded-lg border border-black/10 bg-white py-1 dark:border-white/10 dark:bg-surface-elevated ${
-            opensUpward ? "bottom-full mb-1" : "top-full mt-1"
+            opensUpward
+              ? "bottom-full mb-1 origin-bottom-right animate-popover-in-up"
+              : "top-full mt-1 origin-top-right animate-popover-in"
           }`}
         >
           {items.map((item) => (

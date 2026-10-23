@@ -16,6 +16,7 @@ import { useMemo, useRef, useState } from "react";
 import { Checkbox } from "./Checkbox";
 import { CollapsibleSection } from "./CollapsibleSection";
 import { CssOutput } from "./CssOutput";
+import { SegmentIndicator } from "./SegmentIndicator";
 import {
   DEFAULT_PRESET_VALUE,
   findPresetByValue,
@@ -57,7 +58,7 @@ const TRANSITIONED_PROPERTIES = [
   "border-radius",
   "box-shadow",
 ]
-  .map((property) => `${property} ${TRANSITION_MS}ms ease`)
+  .map((property) => `${property} ${TRANSITION_MS}ms var(--ease-out)`)
   .join(", ");
 
 const DEFAULT_CORNERS: RadiusCorners = {
@@ -429,15 +430,17 @@ export function BoxEditor({ paletteColors }: { paletteColors: string[] }) {
         onToggle={(next) => toggleSection("radius", next)}
       >
         <div className="flex items-center justify-between gap-2">
-          <div className="flex gap-1 clay-inset rounded-md bg-zinc-100 p-0.5 dark:bg-surface-elevated">
+          <div className="relative flex gap-1 clay-inset rounded-md bg-zinc-100 p-0.5 dark:bg-surface-elevated">
+            <SegmentIndicator className="rounded" />
             {(["px", "%"] as const).map((id) => (
               <button
                 key={id}
                 type="button"
                 onClick={() => changeRadiusUnit(id)}
-                className={`cursor-pointer rounded px-2.5 py-0.5 text-[11px] font-medium transition active:scale-95 ${
+                data-active={radiusUnit === id}
+                className={`relative cursor-pointer rounded px-2.5 py-0.5 text-[11px] font-medium transition active:scale-[0.97] ${
                   radiusUnit === id
-                    ? "clay bg-white text-zinc-900 dark:bg-zinc-700 dark:text-white"
+                    ? "text-zinc-900 dark:text-white"
                     : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
                 }`}
               >

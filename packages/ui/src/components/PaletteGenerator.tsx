@@ -20,6 +20,7 @@ import { ColorScaleGrid } from "./ColorScaleGrid";
 import { COLOR_WHEEL_VISUAL_INSET, ColorWheel } from "./ColorWheel";
 import { ImageDropZone } from "./ImageDropZone";
 import { PalettePreviewBar } from "./PalettePreviewBar";
+import { SegmentIndicator } from "./SegmentIndicator";
 import { Slider } from "./Slider";
 import { ThreeDotMenu } from "./ThreeDotMenu";
 import { ToolColumns, ToolWidth } from "./ToolColumns";
@@ -895,15 +896,17 @@ export function PaletteGenerator({
                 segmented-control language shows up wherever the app offers a choice between two
                 views. shrink-0 + whitespace-nowrap so it always keeps its natural one-line
                 width instead of being compressed by the label sharing this row. */}
-            <div className="flex shrink-0 gap-1 clay-inset rounded-md bg-zinc-100 p-0.5 dark:bg-surface-elevated">
+            <div className="relative flex shrink-0 gap-1 clay-inset rounded-md bg-zinc-100 p-0.5 dark:bg-surface-elevated">
+              <SegmentIndicator className="rounded" />
               {(["harmony", "image"] as const).map((source) => (
                 <button
                   key={source}
                   type="button"
                   onClick={() => setPaletteSource(source)}
-                  className={`cursor-pointer whitespace-nowrap rounded px-2 py-0.5 text-[11px] font-medium transition active:scale-95 ${
+                  data-active={paletteSource === source}
+                  className={`relative cursor-pointer whitespace-nowrap rounded px-2 py-0.5 text-[11px] font-medium transition active:scale-[0.97] ${
                     paletteSource === source
-                      ? "clay bg-white text-zinc-900 dark:bg-zinc-700 dark:text-white"
+                      ? "text-zinc-900 dark:text-white"
                       : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
                   }`}
                 >
@@ -939,7 +942,7 @@ export function PaletteGenerator({
                       type="button"
                       onClick={pickColorFromScreen}
                       title="Pick a color from anywhere on screen"
-                      className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-black/10 text-zinc-600 transition hover:bg-zinc-100 active:scale-95 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-surface-elevated"
+                      className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-black/10 text-zinc-600 transition hover:bg-zinc-100 active:scale-[0.97] dark:border-white/10 dark:text-zinc-300 dark:hover:bg-surface-elevated"
                     >
                       <svg
                         viewBox="0 0 24 24"
@@ -996,7 +999,7 @@ export function PaletteGenerator({
                       <button
                         type="button"
                         onClick={clearImage}
-                        className="shrink-0 cursor-pointer rounded-md border border-black/10 px-2.5 py-1.5 text-[11px] font-medium text-zinc-600 transition hover:bg-zinc-100 active:scale-95 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-surface-elevated"
+                        className="shrink-0 cursor-pointer rounded-md border border-black/10 px-2.5 py-1.5 text-[11px] font-medium text-zinc-600 transition hover:bg-zinc-100 active:scale-[0.97] dark:border-white/10 dark:text-zinc-300 dark:hover:bg-surface-elevated"
                       >
                         Change
                       </button>
@@ -1093,7 +1096,7 @@ export function PaletteGenerator({
                   type="button"
                   onClick={randomizeHarmony}
                   title="Pick a random harmony"
-                  className="flex shrink-0 cursor-pointer items-center justify-center rounded-lg border border-black/10 px-2.5 text-zinc-600 transition hover:bg-zinc-100 active:scale-95 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-surface-elevated"
+                  className="flex shrink-0 cursor-pointer items-center justify-center rounded-lg border border-black/10 px-2.5 text-zinc-600 transition hover:bg-zinc-100 active:scale-[0.97] dark:border-white/10 dark:text-zinc-300 dark:hover:bg-surface-elevated"
                 >
                   <svg
                     viewBox="0 0 24 24"
@@ -1200,7 +1203,7 @@ export function PaletteGenerator({
                       type="button"
                       onClick={resetSelection}
                       title="Discard the customized selection and go back to the default scheme"
-                      className="shrink-0 cursor-pointer rounded-full border border-zinc-300 px-3 py-1 text-[11px] font-medium text-zinc-600 transition hover:bg-zinc-100 active:scale-95 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-surface-hover"
+                      className="shrink-0 cursor-pointer rounded-full border border-zinc-300 px-3 py-1 text-[11px] font-medium text-zinc-600 transition hover:bg-zinc-100 active:scale-[0.97] dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-surface-hover"
                     >
                       Reset
                     </button>

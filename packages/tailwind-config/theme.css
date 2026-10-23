@@ -11,6 +11,24 @@
 @theme {
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
+  /* Motion. One set of curves for the whole kit, so everything moves like it belongs together.
+     Tailwind's stock curves are the CSS-spec ones, which start and stop at similar speeds and
+     read as mechanical; these leave fast and settle long, which is what makes motion feel
+     weighted rather than tweened. Overriding the stock names means every `transition`,
+     `ease-out` and `ease-in-out` class in the kit picks them up without being touched.
+       out     — anything arriving or responding: hovers, presses, menus opening.
+       in      — anything leaving, so it accelerates away instead of lingering.
+       in-out  — something moving from one place to another while staying on screen.
+       fluid   — large movements, like a column resizing: a long, soft landing. */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in: cubic-bezier(0.55, 0, 1, 0.45);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-fluid: cubic-bezier(0.32, 0.72, 0, 1);
+  /* Longer than the stock 150ms: at 150 a hover snaps, and with a curve that settles this
+     gently the tail of the motion needs room to be seen. */
+  --default-transition-duration: 220ms;
+  --default-transition-timing-function: var(--ease-out);
+
   --color-brand-50: #eff6ff;
   --color-brand-100: #dbeafe;
   --color-brand-500: #3b82f6;
@@ -190,12 +208,16 @@ input[type="range"] {
   }
 }
 
+/* The contents rise a few pixels as they fade in, so they read as arriving rather than as
+   being uncovered. Transform only — it never reflows the tool underneath. */
 @keyframes panel-content-in {
   from {
     opacity: 0;
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
+    transform: none;
   }
 }
 
@@ -212,10 +234,64 @@ input[type="range"] {
   }
 }
 
+/* Menus and popovers: grown from the corner they hang off — the component sets the origin —
+   rather than appearing whole, which is what makes a menu feel attached to its button. */
+@keyframes popover-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes popover-in-up {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Anything swapped in place — a different view of the same tool. */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 @theme {
-  --animate-panel-card-in: panel-card-in 200ms cubic-bezier(0.2, 0, 0, 1);
+  --animate-panel-card-in: panel-card-in 260ms var(--ease-out);
   /* forwards, so it holds at invisible for the frames between the fade ending and the slot
      actually emptying. */
-  --animate-panel-out: panel-out 220ms cubic-bezier(0.4, 0, 1, 1) forwards;
-  --animate-panel-content-in: panel-content-in 220ms cubic-bezier(0.2, 0, 0, 1);
+  --animate-panel-out: panel-out 200ms var(--ease-in) forwards;
+  --animate-panel-content-in: panel-content-in 320ms var(--ease-out);
+  --animate-popover-in: popover-in 220ms var(--ease-out);
+  --animate-popover-in-up: popover-in-up 220ms var(--ease-out);
+  --animate-fade-in: fade-in 240ms var(--ease-out);
+}
+
+/* For anyone who has asked their system for less motion: everything still changes, it just
+   doesn't travel to get there. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    /* biome-ignore lint/complexity/noImportantStyles: has to beat inline transitions set from script */
+    animation-duration: 1ms !important;
+    /* biome-ignore lint/complexity/noImportantStyles: has to beat inline transitions set from script */
+    animation-iteration-count: 1 !important;
+    /* biome-ignore lint/complexity/noImportantStyles: has to beat inline transitions set from script */
+    transition-duration: 1ms !important;
+    /* biome-ignore lint/complexity/noImportantStyles: has to beat inline transitions set from script */
+    scroll-behavior: auto !important;
+  }
 }

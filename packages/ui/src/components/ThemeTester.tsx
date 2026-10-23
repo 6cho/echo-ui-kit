@@ -248,7 +248,7 @@ function PaletteSelector({
               key={index}
               title="Pick any colour"
               style={{ backgroundColor: hex, flexGrow: 1 }}
-              className="relative min-w-7 basis-7 cursor-pointer transition-[flex-grow,background-color] duration-300 ease-out"
+              className="relative min-w-7 basis-7 cursor-pointer transition-[flex-grow,background-color] duration-500 ease-fluid"
             >
               <input
                 type="color"
@@ -266,7 +266,7 @@ function PaletteSelector({
               onClick={() => onPick(hex, index)}
               title={hex}
               style={{ backgroundColor: hex, flexGrow: 0 }}
-              className="w-7 shrink-0 basis-7 cursor-pointer transition-[flex-grow,background-color] duration-300 ease-out hover:brightness-110 active:brightness-125"
+              className="w-7 shrink-0 basis-7 cursor-pointer transition-[flex-grow,background-color] duration-500 ease-fluid hover:brightness-110 active:brightness-125"
             />
           ),
         )}
@@ -297,9 +297,7 @@ function Switch({
       }`}
     >
       <span
-        className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-all ${
-          checked ? "left-3.5" : "left-0.5"
-        }`}
+        className={`absolute top-0.5 left-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-transform duration-300 ${checked ? "translate-x-3" : ""}`}
       />
     </button>
   );
@@ -1136,7 +1134,7 @@ export function ThemeTester({
           setComponentColors({ light: {}, dark: {} });
           setSlots({});
         }}
-        className="cursor-pointer self-start rounded-full border border-zinc-300 px-3 py-1 text-[11px] font-medium text-zinc-600 transition hover:bg-zinc-100 active:scale-95 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-surface-hover"
+        className="cursor-pointer self-start rounded-full border border-zinc-300 px-3 py-1 text-[11px] font-medium text-zinc-600 transition hover:bg-zinc-100 active:scale-[0.97] dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-surface-hover"
       >
         Re-suggest from palette
       </button>

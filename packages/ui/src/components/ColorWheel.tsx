@@ -200,7 +200,7 @@ export function ColorWheel({
             type="button"
             title={hex}
             onClick={onToggleColor ? () => onToggleColor(hex) : undefined}
-            className="-translate-x-1/2 -translate-y-1/2 absolute h-3.5 w-3.5 cursor-pointer rounded-full border border-white/60 shadow-sm transition active:scale-90"
+            className="-translate-x-1/2 -translate-y-1/2 absolute h-3.5 w-3.5 cursor-pointer rounded-full border border-white/60 shadow-sm transition active:scale-[0.94]"
             style={{ left: tipX, top: tipY, backgroundColor: hex }}
           />,
         ],

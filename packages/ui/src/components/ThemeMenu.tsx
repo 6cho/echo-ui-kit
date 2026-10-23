@@ -1,5 +1,6 @@
 import type { Theme } from "../lib/theme";
 import { useDismissable } from "../lib/useDismissable";
+import { SegmentIndicator } from "./SegmentIndicator";
 
 const MODES: { id: Theme; label: string }[] = [
   { id: "light", label: "Light" },
@@ -76,7 +77,7 @@ export function ThemeMenu({
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-label="Theme settings"
-        className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg border transition active:scale-95 ${
+        className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg border transition active:scale-[0.97] ${
           isOpen
             ? "border-brand-500 text-brand-600 dark:text-brand-400"
             : "border-black/10 text-zinc-600 hover:bg-zinc-100 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-surface-elevated"
@@ -101,21 +102,23 @@ export function ThemeMenu({
         <div
           // Right-anchored: the trigger sits at the right edge of the app header, so a menu
           // wider than it has to grow inward or it goes off the window.
-          className="clay absolute right-0 z-30 mt-1.5 flex w-60 flex-col gap-3 rounded-xl border border-black/10 bg-white p-3 dark:border-white/10 dark:bg-surface-elevated"
+          className="clay absolute right-0 z-30 mt-1.5 origin-top-right animate-popover-in flex w-60 flex-col gap-3 rounded-xl border border-black/10 bg-white p-3 dark:border-white/10 dark:bg-surface-elevated"
         >
           <div className="flex flex-col gap-1.5">
             <span className="font-medium text-[10px] text-zinc-400 uppercase tracking-wide dark:text-zinc-500">
               Appearance
             </span>
-            <div className="clay-inset flex gap-1 rounded-lg bg-zinc-100 p-1 dark:bg-surface">
+            <div className="relative clay-inset flex gap-1 rounded-lg bg-zinc-100 p-1 dark:bg-surface">
+              <SegmentIndicator className="rounded-md" />
               {MODES.map((mode) => (
                 <button
                   key={mode.id}
                   type="button"
                   onClick={() => onThemeChange(mode.id)}
-                  className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-md px-2 py-1 font-medium text-xs transition active:scale-95 ${
+                  data-active={theme === mode.id}
+                  className={`relative flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-md px-2 py-1 font-medium text-xs transition active:scale-[0.97] ${
                     theme === mode.id
-                      ? "clay bg-white text-zinc-900 dark:bg-zinc-700 dark:text-white"
+                      ? "text-zinc-900 dark:text-white"
                       : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
                   }`}
                 >
@@ -166,9 +169,7 @@ export function ThemeMenu({
                 }`}
               >
                 <span
-                  className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-all ${
-                    isPaletteApplied ? "left-3.5" : "left-0.5"
-                  }`}
+                  className={`absolute top-0.5 left-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-transform duration-300 ${isPaletteApplied ? "translate-x-3" : ""}`}
                 />
               </button>
             </div>

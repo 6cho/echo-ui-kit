@@ -82,19 +82,19 @@ const ADD_SLOT_WIDTH = 100;
 // How long a column takes to grow into a panel or collapse back to a rail. The one moment the
 // layout rearranges itself, so it wants to be watchable — but it is also in the way of the tool
 // you just asked for, which puts the ceiling somewhere under half a second.
-const LAYOUT_TRANSITION_MS = 450;
+const LAYOUT_TRANSITION_MS = 480;
 
 // A dragged panel easing into the slot it was dropped on, which is a different kind of motion —
 // it finishes a gesture the pointer already made, so it has to keep up with the hand rather than
 // take its time.
-const DRAG_SETTLE_MS = 220;
+const DRAG_SETTLE_MS = 260;
 
-// The contents' own fade, at either end. Opening and closing are then exact mirrors: a fade and
-// a slide each way, the same length in both directions.
-const PANEL_CONTENT_MS = 220;
+// The contents' own arrival — a fade and a short rise. Matches panel-content-in in theme.css.
+const PANEL_CONTENT_MS = 320;
 
-// How long the panel spends fading before its slot is actually emptied — see panel-out.
-const PANEL_EXIT_MS = PANEL_CONTENT_MS;
+// How long the panel spends fading before its slot is actually emptied — see panel-out. Shorter
+// than arriving: something you dismissed should get out of the way, not perform its exit.
+const PANEL_EXIT_MS = 200;
 
 function paletteKey(colors: string[]): string {
   return colors.join(",");
@@ -975,7 +975,7 @@ export function AppShell() {
       transition:
         index === drag.from && !drag.settling
           ? "none"
-          : `transform ${DRAG_SETTLE_MS}ms cubic-bezier(0.2, 0, 0, 1)`,
+          : `transform ${DRAG_SETTLE_MS}ms var(--ease-out)`,
     };
   }
 
@@ -1088,7 +1088,7 @@ export function AppShell() {
             padding: isCarded ? CARD_PADDING : 0,
             transition: isResizing
               ? undefined
-              : `grid-template-columns ${LAYOUT_TRANSITION_MS}ms cubic-bezier(0.2, 0, 0, 1)`,
+              : `grid-template-columns ${LAYOUT_TRANSITION_MS}ms var(--ease-fluid)`,
           }}
         >
           {/* One card per open tool, spanning its header and its body. Drawn as a single
@@ -1184,7 +1184,7 @@ export function AppShell() {
                     type="button"
                     onClick={() => closePanel(index)}
                     title="Close this panel"
-                    className="ml-auto flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 active:scale-90 dark:hover:bg-surface-elevated dark:hover:text-white"
+                    className="ml-auto flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 active:scale-[0.94] dark:hover:bg-surface-elevated dark:hover:text-white"
                   >
                     ✕
                   </button>

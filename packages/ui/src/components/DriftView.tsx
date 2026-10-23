@@ -8,6 +8,7 @@ import {
 import { useMemo, useState } from "react";
 import type { SavedPalette } from "../types/palette";
 import { CollapsibleSection } from "./CollapsibleSection";
+import { SegmentIndicator } from "./SegmentIndicator";
 import { ToolColumns } from "./ToolColumns";
 
 const VERDICT_STYLE: Record<
@@ -170,15 +171,17 @@ export function DriftView({
           Colors in use
         </span>
         {onScanPage && (
-          <div className="flex gap-1 clay-inset rounded-lg bg-zinc-100 p-1 dark:bg-surface-elevated">
+          <div className="relative flex gap-1 clay-inset rounded-lg bg-zinc-100 p-1 dark:bg-surface-elevated">
+            <SegmentIndicator className="rounded-md" />
             {(["page", "paste"] as const).map((id) => (
               <button
                 key={id}
                 type="button"
                 onClick={() => setSource(id)}
-                className={`flex-1 cursor-pointer rounded-md px-2 py-1 text-xs font-medium transition active:scale-95 ${
+                data-active={source === id}
+                className={`relative flex-1 cursor-pointer rounded-md px-2 py-1 text-xs font-medium transition active:scale-[0.97] ${
                   source === id
-                    ? "clay bg-white text-zinc-900 dark:bg-zinc-700 dark:text-white"
+                    ? "text-zinc-900 dark:text-white"
                     : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
                 }`}
               >
@@ -193,7 +196,7 @@ export function DriftView({
             type="button"
             onClick={onScanPage}
             disabled={isScanning}
-            className="cursor-pointer self-start clay rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white transition hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+            className="cursor-pointer self-start clay rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white transition hover:opacity-90 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isScanning ? "Scanning…" : "Rescan page"}
           </button>

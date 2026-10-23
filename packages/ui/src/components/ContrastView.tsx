@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ContrastGrid } from "./ContrastGrid";
 import { ImageContrastChecker } from "./ImageContrastChecker";
+import { SegmentIndicator } from "./SegmentIndicator";
 import { ToolWidth } from "./ToolColumns";
 
 type ContrastMode = "palette" | "image";
@@ -19,7 +20,8 @@ export function ContrastView({ colors }: { colors: string[] }) {
   return (
     <div className="flex flex-col">
       <ToolWidth className="px-4 pt-4">
-        <div className="flex gap-1 clay-inset rounded-lg bg-zinc-100 p-1 dark:bg-surface-elevated">
+        <div className="relative flex gap-1 clay-inset rounded-lg bg-zinc-100 p-1 dark:bg-surface-elevated">
+          <SegmentIndicator className="rounded-md" />
           {(
             [
               { id: "palette", label: "Palette pairs" },
@@ -30,9 +32,10 @@ export function ContrastView({ colors }: { colors: string[] }) {
               key={id}
               type="button"
               onClick={() => setMode(id)}
-              className={`flex-1 cursor-pointer rounded-md px-2.5 py-1 text-xs font-medium transition active:scale-95 ${
+              data-active={mode === id}
+              className={`relative flex-1 cursor-pointer rounded-md px-2.5 py-1 text-xs font-medium transition active:scale-[0.97] ${
                 mode === id
-                  ? "clay bg-white text-zinc-900 dark:bg-zinc-700 dark:text-white"
+                  ? "text-zinc-900 dark:text-white"
                   : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
               }`}
             >

@@ -6,6 +6,7 @@ import {
   regionContrastStats,
 } from "../lib/imageContrast";
 import { ImageDropZone } from "./ImageDropZone";
+import { SegmentIndicator } from "./SegmentIndicator";
 import { ToolColumns, ToolWidth } from "./ToolColumns";
 
 // 24px is WCAG's "large text" boundary for non-bold type (18pt), which is the threshold that
@@ -286,15 +287,17 @@ export function ImageContrastChecker({
         <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
           Text size
         </span>
-        <div className="flex gap-1 clay-inset rounded-lg bg-zinc-100 p-1 dark:bg-surface-elevated">
+        <div className="relative flex gap-1 clay-inset rounded-lg bg-zinc-100 p-1 dark:bg-surface-elevated">
+          <SegmentIndicator className="rounded-md" />
           {SIZE_PRESETS.map((preset) => (
             <button
               key={preset.id}
               type="button"
               onClick={() => setSizeId(preset.id)}
-              className={`flex-1 cursor-pointer rounded-md px-2 py-1 text-xs font-medium transition active:scale-95 ${
+              data-active={sizeId === preset.id}
+              className={`relative flex-1 cursor-pointer rounded-md px-2 py-1 text-xs font-medium transition active:scale-[0.97] ${
                 sizeId === preset.id
-                  ? "clay bg-white text-zinc-900 dark:bg-zinc-700 dark:text-white"
+                  ? "text-zinc-900 dark:text-white"
                   : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
               }`}
             >
@@ -317,7 +320,7 @@ export function ImageContrastChecker({
               onClick={() => setTextColor(hex)}
               title={hex}
               style={{ backgroundColor: hex }}
-              className={`h-7 w-7 cursor-pointer rounded-md border transition active:scale-90 ${
+              className={`h-7 w-7 cursor-pointer rounded-md border transition active:scale-[0.94] ${
                 textColor === hex
                   ? "border-brand-500 ring-2 ring-brand-500"
                   : "border-black/20 dark:border-white/20"
@@ -330,7 +333,7 @@ export function ImageContrastChecker({
       <button
         type="button"
         onClick={clearImage}
-        className="cursor-pointer self-start rounded-md border border-black/10 px-2.5 py-1.5 text-[11px] font-medium text-zinc-600 transition hover:bg-zinc-100 active:scale-95 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-surface-elevated"
+        className="cursor-pointer self-start rounded-md border border-black/10 px-2.5 py-1.5 text-[11px] font-medium text-zinc-600 transition hover:bg-zinc-100 active:scale-[0.97] dark:border-white/10 dark:text-zinc-300 dark:hover:bg-surface-elevated"
       >
         Use a different image
       </button>

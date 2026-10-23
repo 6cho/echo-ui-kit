@@ -73,7 +73,7 @@ export function ColorSwatch({
       // inner span — scaling just an inner fill previously left the outer border-only button at
       // full size, exposing a black gap around the now-smaller fill. Scaling the whole element
       // together avoids that.
-      className={`group flex flex-col overflow-hidden border-2 shadow-sm transition active:scale-95 ${compact ? "rounded-full" : "rounded-xl"} ${
+      className={`group flex flex-col overflow-hidden border-2 shadow-sm transition active:scale-[0.97] ${compact ? "rounded-full" : "rounded-xl"} ${
         disabled
           ? "cursor-not-allowed border-zinc-300 dark:border-zinc-600"
           : selected

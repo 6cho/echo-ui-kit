@@ -5,6 +5,7 @@ import {
 } from "@echo-ui-kit/tools-core";
 import { useState } from "react";
 import { ColorStrip } from "./ColorStrip";
+import { SegmentIndicator } from "./SegmentIndicator";
 import { Slider } from "./Slider";
 import { ThreeDotMenu } from "./ThreeDotMenu";
 
@@ -85,15 +86,17 @@ export function GradientControls({
 
   return (
     <>
-      <div className="flex gap-1 clay-inset rounded-lg bg-zinc-100 p-1 dark:bg-surface-elevated">
+      <div className="relative flex gap-1 clay-inset rounded-lg bg-zinc-100 p-1 dark:bg-surface-elevated">
+        <SegmentIndicator className="rounded-md" />
         {GRADIENT_TYPES.map(({ id, label }) => (
           <button
             key={id}
             type="button"
             onClick={() => onChange({ ...gradient, type: id })}
-            className={`flex-1 cursor-pointer rounded-md px-2 py-1 text-xs font-medium transition active:scale-95 ${
+            data-active={gradient.type === id}
+            className={`relative flex-1 cursor-pointer rounded-md px-2 py-1 text-xs font-medium transition active:scale-[0.97] ${
               gradient.type === id
-                ? "clay bg-white text-zinc-900 dark:bg-zinc-700 dark:text-white"
+                ? "text-zinc-900 dark:text-white"
                 : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
             }`}
           >
@@ -124,7 +127,7 @@ export function GradientControls({
           <button
             type="button"
             onClick={addStop}
-            className="cursor-pointer rounded-md border border-black/10 px-2 py-1 text-[11px] font-medium text-zinc-600 transition hover:bg-zinc-100 active:scale-95 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-surface-elevated"
+            className="cursor-pointer rounded-md border border-black/10 px-2 py-1 text-[11px] font-medium text-zinc-600 transition hover:bg-zinc-100 active:scale-[0.97] dark:border-white/10 dark:text-zinc-300 dark:hover:bg-surface-elevated"
           >
             Add stop
           </button>
@@ -150,7 +153,7 @@ export function GradientControls({
             type="button"
             onClick={() => setSelectedStop(i)}
             title={`${s.color} at ${Math.round(s.position)}%`}
-            className={`flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium transition active:scale-95 ${
+            className={`flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium transition active:scale-[0.97] ${
               i === selectedStop
                 ? "border-brand-500 text-brand-600 dark:text-brand-500"
                 : "border-black/10 text-zinc-500 hover:bg-zinc-100 dark:border-white/10 dark:hover:bg-surface-elevated"

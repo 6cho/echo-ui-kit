@@ -92,7 +92,7 @@ export function FilterPlayground({
         <button
           type="button"
           onClick={clearImage}
-          className="cursor-pointer self-start rounded-md border border-black/10 px-2.5 py-1.5 text-[11px] font-medium text-zinc-600 transition hover:bg-zinc-100 active:scale-95 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-surface-elevated"
+          className="cursor-pointer self-start rounded-md border border-black/10 px-2.5 py-1.5 text-[11px] font-medium text-zinc-600 transition hover:bg-zinc-100 active:scale-[0.97] dark:border-white/10 dark:text-zinc-300 dark:hover:bg-surface-elevated"
         >
           Use the palette preview
         </button>
@@ -113,7 +113,7 @@ export function FilterPlayground({
           onClick={() => setValues(NEUTRAL_FILTER)}
           disabled={isNeutral}
           title="Reset every filter to its neutral value"
-          className="cursor-pointer rounded-full border border-zinc-300 px-3 py-1 text-[11px] font-medium text-zinc-600 transition hover:bg-zinc-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-surface-hover"
+          className="cursor-pointer rounded-full border border-zinc-300 px-3 py-1 text-[11px] font-medium text-zinc-600 transition hover:bg-zinc-100 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-surface-hover"
         >
           Reset
         </button>

@@ -119,7 +119,7 @@ function ColorChip({
         type="button"
         onClick={() => onAction(color.id)}
         title={actionTitle}
-        className="shrink-0 cursor-pointer rounded-full px-1 py-0.5 text-zinc-500 transition hover:bg-zinc-200 hover:text-zinc-900 active:scale-90 dark:hover:bg-surface-hover dark:hover:text-white"
+        className="shrink-0 cursor-pointer rounded-full px-1 py-0.5 text-zinc-500 transition hover:bg-zinc-200 hover:text-zinc-900 active:scale-[0.94] dark:hover:bg-surface-hover dark:hover:text-white"
       >
         {actionLabel}
       </button>

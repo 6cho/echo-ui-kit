@@ -5,6 +5,7 @@ import {
   formatPaletteTokens,
 } from "@echo-ui-kit/tools-core";
 import { useMemo, useState } from "react";
+import { SegmentIndicator } from "./SegmentIndicator";
 import { ToolColumns } from "./ToolColumns";
 
 /**
@@ -69,15 +70,17 @@ export function ExportView({
 
   return (
     <ToolColumns className="p-4">
-      <div className="flex gap-1 clay-inset rounded-lg bg-zinc-100 p-1 dark:bg-surface-elevated">
+      <div className="relative flex gap-1 clay-inset rounded-lg bg-zinc-100 p-1 dark:bg-surface-elevated">
+        <SegmentIndicator className="rounded-md" />
         {EXPORT_FORMATS.map(({ id, label }) => (
           <button
             key={id}
             type="button"
             onClick={() => setFormat(id)}
-            className={`flex-1 cursor-pointer rounded-md px-2 py-1 text-xs font-medium transition active:scale-95 ${
+            data-active={format === id}
+            className={`relative flex-1 cursor-pointer rounded-md px-2 py-1 text-xs font-medium transition active:scale-[0.97] ${
               format === id
-                ? "clay bg-white text-zinc-900 dark:bg-zinc-700 dark:text-white"
+                ? "text-zinc-900 dark:text-white"
                 : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
             }`}
           >
@@ -95,7 +98,7 @@ export function ExportView({
             type="button"
             onClick={copyToClipboard}
             title="Copy to clipboard"
-            className="shrink-0 cursor-pointer clay rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white transition hover:opacity-90 active:scale-95"
+            className="shrink-0 cursor-pointer clay rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white transition hover:opacity-90 active:scale-[0.97]"
           >
             {copied ? "Copied" : "Copy"}
           </button>

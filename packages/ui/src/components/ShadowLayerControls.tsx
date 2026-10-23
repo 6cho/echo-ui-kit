@@ -177,7 +177,7 @@ export function ShadowLayerControls({
           <button
             type="button"
             onClick={addLayer}
-            className="cursor-pointer rounded-md border border-black/10 px-2 py-1 text-[11px] font-medium text-zinc-600 transition hover:bg-zinc-100 active:scale-95 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-surface-elevated"
+            className="cursor-pointer rounded-md border border-black/10 px-2 py-1 text-[11px] font-medium text-zinc-600 transition hover:bg-zinc-100 active:scale-[0.97] dark:border-white/10 dark:text-zinc-300 dark:hover:bg-surface-elevated"
           >
             Add layer
           </button>
@@ -206,7 +206,7 @@ export function ShadowLayerControls({
               // The full CSS on hover, since the label can only carry the two things worth
               // telling layers apart at a glance — their order, and which way each one faces.
               title={formatShadowLayer(layer)}
-              className={`cursor-pointer rounded-md border px-2.5 py-1 text-[11px] font-medium transition active:scale-95 ${
+              className={`cursor-pointer rounded-md border px-2.5 py-1 text-[11px] font-medium transition active:scale-[0.97] ${
                 i === selectedIndex
                   ? "border-brand-500 text-brand-600 dark:text-brand-500"
                   : "border-black/10 text-zinc-500 hover:bg-zinc-100 dark:border-white/10 dark:hover:bg-surface-elevated"

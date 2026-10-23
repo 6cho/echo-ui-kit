@@ -22,9 +22,7 @@ function Switch({
       }`}
     >
       <span
-        className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-all ${
-          checked ? "left-3.5" : "left-0.5"
-        }`}
+        className={`absolute top-0.5 left-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-transform duration-300 ${checked ? "translate-x-3" : ""}`}
       />
     </button>
   );
@@ -64,6 +62,10 @@ export function CollapsibleSection({
 }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const showBody = isOpen && enabled;
+  // The body is built the first time it opens and kept from then on, so it has a height to close
+  // from — a body that unmounted the moment it was folded would vanish instead of folding away.
+  const [hasOpened, setHasOpened] = useState(showBody);
+  if (showBody && !hasOpened) setHasOpened(true);
 
   return (
     <div className="flex flex-col overflow-hidden rounded-lg border border-black/10 dark:border-white/10">
@@ -109,11 +111,26 @@ export function CollapsibleSection({
           <Switch checked={enabled} label={title} onChange={onToggle} />
         )}
       </div>
-      {showBody && (
-        <div className="flex flex-col gap-2.5 border-black/10 border-t px-3 py-3 dark:border-white/10">
-          {children}
+      {/* Folds by animating a one-row grid between 0fr and 1fr, which tracks the body's real
+          height without measuring it. The contents fade a beat behind the fold, so they are never
+          seen squashed against its edge. */}
+      <div
+        className="grid transition-[grid-template-rows] duration-[360ms] ease-fluid"
+        style={{ gridTemplateRows: showBody ? "1fr" : "0fr" }}
+        inert={!showBody}
+      >
+        <div className="min-h-0 overflow-hidden">
+          {hasOpened && (
+            <div
+              className={`flex flex-col gap-2.5 border-black/10 border-t px-3 py-3 transition-opacity duration-300 dark:border-white/10 ${
+                showBody ? "opacity-100 delay-75" : "opacity-0"
+              }`}
+            >
+              {children}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

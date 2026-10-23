@@ -39,7 +39,7 @@ export function Checkbox({
         className="peer sr-only"
       />
       <span
-        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500 peer-focus-visible:ring-offset-1 peer-active:scale-90 dark:peer-focus-visible:ring-offset-surface ${
+        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500 peer-focus-visible:ring-offset-1 peer-active:scale-[0.94] dark:peer-focus-visible:ring-offset-surface ${
           align === "start" ? "mt-0.5" : ""
         } ${
           checked

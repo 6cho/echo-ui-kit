@@ -21,6 +21,7 @@ import {
   useState,
 } from "react";
 import { CssOutput } from "./CssOutput";
+import { SegmentIndicator } from "./SegmentIndicator";
 import { Slider } from "./Slider";
 import { ToolColumns } from "./ToolColumns";
 
@@ -613,7 +614,8 @@ export function EasingEditor() {
       {/* Two timing functions with genuinely different trade-offs, not two ways to draw one. A
           cubic is smooth everywhere and has room for exactly two independent handles; a linear
           function has as many independent points as you like and a corner at each one. */}
-      <div className="clay-inset flex gap-1 rounded-lg bg-zinc-100 p-1 dark:bg-surface-elevated">
+      <div className="relative clay-inset flex gap-1 rounded-lg bg-zinc-100 p-1 dark:bg-surface-elevated">
+        <SegmentIndicator className="rounded-md" />
         {(
           [
             { id: "cubic", label: "Cubic bezier" },
@@ -624,9 +626,10 @@ export function EasingEditor() {
             key={option.id}
             type="button"
             onClick={() => setMode(option.id)}
-            className={`flex-1 cursor-pointer rounded-md px-2.5 py-1 font-medium text-xs transition active:scale-95 ${
+            data-active={mode === option.id}
+            className={`relative flex-1 cursor-pointer rounded-md px-2.5 py-1 font-medium text-xs transition active:scale-[0.97] ${
               mode === option.id
-                ? "clay bg-white text-zinc-900 dark:bg-zinc-700 dark:text-white"
+                ? "text-zinc-900 dark:text-white"
                 : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
             }`}
           >
@@ -761,7 +764,7 @@ export function EasingEditor() {
           title={isPlaying ? "Pause the preview" : "Play the preview"}
           aria-label={isPlaying ? "Pause the preview" : "Play the preview"}
           aria-pressed={!isPlaying}
-          className="clay absolute right-3 bottom-3 flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-black/10 bg-white text-zinc-600 transition active:scale-90 dark:border-white/10 dark:bg-surface-elevated dark:text-zinc-300"
+          className="clay absolute right-3 bottom-3 flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-black/10 bg-white text-zinc-600 transition active:scale-[0.94] dark:border-white/10 dark:bg-surface-elevated dark:text-zinc-300"
         >
           <svg
             viewBox="0 0 24 24"
@@ -864,7 +867,7 @@ export function EasingEditor() {
                 key={count}
                 type="button"
                 onClick={() => setPointCount(count)}
-                className={`h-7 w-7 cursor-pointer rounded-md border font-medium text-[11px] transition active:scale-95 ${
+                className={`h-7 w-7 cursor-pointer rounded-md border font-medium text-[11px] transition active:scale-[0.97] ${
                   points.length === count
                     ? "border-brand-500 text-brand-600 dark:text-brand-500"
                     : "border-black/10 text-zinc-600 hover:bg-zinc-100 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-surface-elevated"
@@ -890,7 +893,7 @@ export function EasingEditor() {
                 key={preset.id}
                 type="button"
                 onClick={() => applyPreset(preset.value)}
-                className={`clay cursor-pointer rounded-md border bg-white px-2.5 py-1 font-medium text-[11px] transition active:scale-95 dark:bg-surface-elevated ${
+                className={`clay cursor-pointer rounded-md border bg-white px-2.5 py-1 font-medium text-[11px] transition active:scale-[0.97] dark:bg-surface-elevated ${
                   activePreset?.id === preset.id
                     ? "border-brand-500 text-brand-600 dark:text-brand-500"
                     : "border-black/10 text-zinc-600 dark:border-white/10 dark:text-zinc-300"
