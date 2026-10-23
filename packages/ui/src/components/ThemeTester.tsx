@@ -620,7 +620,7 @@ export function ThemeTester({
   // the element can be seen bare while its colours are being tried.
   const [highlighted, setHighlighted] = useState(true);
   // Whether the colour editor is open. Clicking an element in a preview, or one of its rows,
-  // opens it on that colour; clicking more of them retargets it.
+  // opens it on that colour; any click outside it closes it.
   const [isEditing, setIsEditing] = useState(false);
   const previewsRef = useRef<HTMLDivElement>(null);
 
@@ -844,7 +844,7 @@ export function ThemeTester({
         <p className="text-[11px] text-zinc-500">
           Click any part of a preview to customise the colours it uses.
         </p>
-        <div ref={previewsRef} data-color-trigger className="flex gap-3">
+        <div ref={previewsRef} className="flex gap-3">
           <Preview
             mapping={pair.light}
             components={components.light}
@@ -879,7 +879,7 @@ export function ThemeTester({
         <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
           {`${mode} mode / ${ELEMENTS[element].label}`}
         </span>
-        <div data-color-trigger className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1">
           {PROPERTIES.map((property) => {
             const part = ELEMENTS[element].parts.find(
               (candidate) => candidate.property === property,

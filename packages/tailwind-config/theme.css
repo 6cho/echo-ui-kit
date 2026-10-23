@@ -259,6 +259,16 @@ input[type="range"] {
 }
 
 /* Anything swapped in place — a different view of the same tool. */
+/* Leaving: `forwards` on the animation holds it invisible until it is unmounted. */
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;
@@ -277,6 +287,7 @@ input[type="range"] {
   --animate-popover-in: popover-in 220ms var(--ease-out);
   --animate-popover-in-up: popover-in-up 220ms var(--ease-out);
   --animate-fade-in: fade-in 240ms var(--ease-out);
+  --animate-fade-out: fade-out 180ms var(--ease-in) forwards;
 }
 
 /* For anyone who has asked their system for less motion: everything still changes, it just

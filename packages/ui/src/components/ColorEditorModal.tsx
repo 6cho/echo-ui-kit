@@ -2,6 +2,9 @@ import { fromHsl, toHsl } from "@echo-ui-kit/tools-core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Slider } from "./Slider";
 
+// Matches --animate-fade-out in theme.css: how long the editor stays mounted after closing.
+const FADE_OUT_MS = 180;
+
 /**
  * The palette as one bar spanning its container, every colour a square except the one in use,
  * which stretches to fill the rest from wherever it sits in the palette.
@@ -79,9 +82,10 @@ interface Hsl {
  *
  * Floats at the top centre of the window — the page in the web app, the side panel in the
  * extension — rather than over a dimmed page, because the point of choosing a colour here is
- * watching what it does to something else, and a backdrop would hide exactly that. It leaves when Escape is pressed, when it is closed, or when anything is
- * clicked that is neither the sheet nor marked `data-color-trigger` — the things that open it can
- * be clicked to retarget it without it closing in between.
+ * watching what it does to something else, and a backdrop would hide exactly that. It leaves when Escape is pressed, when it is closed, or on any click outside
+ * it — and that click only closes it. Letting it through as well would mean a click on another
+ * preview element closed the editor and reopened it in the same motion, so it never seemed to
+ * close at all.
  */
 export function ColorEditorModal({
   open,
@@ -109,6 +113,22 @@ export function ColorEditorModal({
   onClose: () => void;
 }) {
   const sheetRef = useRef<HTMLDivElement>(null);
+
+  // Kept on screen for the length of its fade after `open` goes false, then unmounted. Reopening
+  // mid-fade just cancels the exit.
+  const [isMounted, setIsMounted] = useState(open);
+  const [isLeaving, setIsLeaving] = useState(false);
+  if (open && !isMounted) setIsMounted(true);
+  if (open && isLeaving) setIsLeaving(false);
+  if (!open && isMounted && !isLeaving) setIsLeaving(true);
+  useEffect(() => {
+    if (!isLeaving) return;
+    const timer = setTimeout(() => {
+      setIsMounted(false);
+      setIsLeaving(false);
+    }, FADE_OUT_MS);
+    return () => clearTimeout(timer);
+  }, [isLeaving]);
 
   // Held while dragging rather than read back from the hex each time: a grey has no hue, so
   // taking saturation to zero and back would otherwise lose the hue it started with. Read afresh
@@ -146,7 +166,20 @@ export function ColorEditorModal({
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as Element | null;
       if (sheetRef.current?.contains(target)) return;
-      if (target?.closest?.("[data-color-trigger]")) return;
+      // Swallow the click this press is about to become, so it dismisses and does nothing else.
+      const swallow = (click: MouseEvent) => {
+        click.stopPropagation();
+        click.preventDefault();
+      };
+      document.addEventListener("click", swallow, {
+        capture: true,
+        once: true,
+      });
+      // A press that never becomes a click (a drag, say) mustn't leave the trap set for the next.
+      setTimeout(
+        () => document.removeEventListener("click", swallow, { capture: true }),
+        500,
+      );
       onClose();
     };
     document.addEventListener("keydown", onKey);
@@ -157,7 +190,7 @@ export function ColorEditorModal({
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!isMounted) return null;
 
   return (
     <div
@@ -166,7 +199,9 @@ export function ColorEditorModal({
       aria-label={title}
       // Centred with `translate`, which is its own property in Tailwind v4, so it composes with
       // the entrance animation's transform rather than being overwritten by it.
-      className="clay fixed top-3 left-1/2 z-40 flex w-[min(540px,calc(100vw-24px))] -translate-x-1/2 origin-top animate-popover-in flex-col gap-7 rounded-3xl border border-black/10 bg-white p-6 sm:p-10 dark:border-white/10 dark:bg-surface-elevated"
+      className={`clay fixed top-3 left-1/2 z-40 flex w-[min(540px,calc(100vw-24px))] -translate-x-1/2 flex-col gap-7 rounded-3xl border border-black/10 bg-white p-6 sm:p-10 dark:border-white/10 dark:bg-surface-elevated ${
+        isLeaving ? "pointer-events-none animate-fade-out" : "animate-fade-in"
+      }`}
     >
       <div className="flex items-center gap-2">
         <span
