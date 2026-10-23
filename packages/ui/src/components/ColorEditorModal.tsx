@@ -1,5 +1,6 @@
 import { fromHsl, toHsl } from "@echo-ui-kit/tools-core";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ColorPicker } from "./ColorPicker";
 import { Slider } from "./Slider";
 
 // Matches --animate-fade-out in theme.css: how long the editor stays mounted after closing.
@@ -187,7 +188,7 @@ export function ColorEditorModal({
         aria-label={title}
         // Centred with `translate`, which is its own property in Tailwind v4, so it composes with
         // the entrance animation's transform rather than being overwritten by it.
-        className={`clay fixed top-3 left-1/2 z-50 flex w-[min(540px,calc(100vw-24px))] -translate-x-1/2 flex-col gap-7 rounded-3xl border border-black/10 bg-white p-6 sm:p-10 dark:border-white/10 dark:bg-surface-elevated ${
+        className={`clay fixed top-3 left-1/2 z-50 flex max-h-[calc(100vh-24px)] w-[min(540px,calc(100vw-24px))] -translate-x-1/2 flex-col overflow-y-auto gap-7 rounded-3xl border border-black/10 bg-white p-6 sm:p-10 dark:border-white/10 dark:bg-surface-elevated ${
           isLeaving ? "pointer-events-none animate-fade-out" : "animate-fade-in"
         }`}
       >
@@ -229,6 +230,12 @@ export function ColorEditorModal({
           activeHex={value}
           onPick={onPick}
           onCustom={onChange}
+        />
+
+        <ColorPicker
+          value={value}
+          selectionKey={selectionKey}
+          onChange={onChange}
         />
 
         <div className="flex flex-col gap-5">
