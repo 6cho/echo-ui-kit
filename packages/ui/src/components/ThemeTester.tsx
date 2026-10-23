@@ -609,11 +609,28 @@ export function ThemeTester({
    */
   const [tint, setTint] = useState(DEFAULT_NEUTRAL_TINT);
   /**
-   * Which colour the neutrals lean toward: the palette's base, which is also what the theme
-   * paints its buttons with, so the structure leans toward the same colour the theme is accented
-   * in rather than toward something worked out separately.
+   * Which colour the neutrals lean toward. By default the palette's base, which is also what the
+   * theme paints its buttons with, so the structure leans toward the same colour the theme is
+   * accented in. It can be pointed at any other palette colour — a blue-accented theme on
+   * green-grey structure is a perfectly good theme — but only on purpose: the neutrals drive the
+   * whole suggested theme, so following whichever colour was last clicked would re-suggest the
+   * theme, and throw away the edit just made, on every click.
+   *
+   * Kept as a choice only while the palette still contains it; a palette edit that removes it
+   * falls back to the base rather than tinting toward a colour that is no longer there.
    */
-  const neutralSource = baseColor ?? paletteAccent(paletteColors) ?? "#71717a";
+  const [chosenNeutralSource, setChosenNeutralSource] = useState<string | null>(
+    null,
+  );
+  const defaultNeutralSource =
+    baseColor ?? paletteAccent(paletteColors) ?? "#71717a";
+  const neutralSource =
+    chosenNeutralSource &&
+    paletteColors.some(
+      (hex) => hex.toLowerCase() === chosenNeutralSource.toLowerCase(),
+    )
+      ? chosenNeutralSource
+      : defaultNeutralSource;
   const neutrals = useMemo(
     () => deriveNeutrals(neutralSource, tint),
     [neutralSource, tint],
@@ -986,6 +1003,12 @@ export function ThemeTester({
       {/* Under the palette, because that is the order they are derived in and the order they
           matter in: the palette is the decision, these follow from it. */}
       <div className="flex flex-col gap-1.5">
+        <ColorStrip
+          label="Tint neutrals toward"
+          colors={paletteColors}
+          value={neutralSource}
+          onChange={setChosenNeutralSource}
+        />
         <ColorStrip
           label="Neutrals · page, cards, borders and copy"
           colors={neutralHexes}
