@@ -91,6 +91,14 @@ const SECONDARY_MAX_LIGHTNESS = 0.85;
 // How far in lightness a shade of the primary's own hue has to sit from it to read as a different
 // shade rather than a near-twin of the primary button beside it.
 const SECONDARY_MIN_SHADE_GAP = 0.12;
+// The lightness band in which a colour looks vivid rather than deep. A dark red and a mid orange
+// can carry the same chroma, but the dark red reads as near-brown at a glance; between two
+// otherwise equal candidates, the one in this band is the one that looks like the palette.
+const SECONDARY_VIVID_MIN_LIGHTNESS = 0.45;
+const SECONDARY_VIVID_MAX_LIGHTNESS = 0.85;
+// How close in hue a palette entry must be to the chosen one to stand in for it — another shade of
+// the same colour, not a neighbouring colour.
+const SECONDARY_SAME_HUE = 20;
 
 export interface ThemePair {
   light: ThemeMapping;
@@ -133,8 +141,11 @@ function hueDistance(a: number, b: number): number {
  * primary, which walks straight to the extremes — a monochrome purple's secondary came out as its
  * 900, which is black to look at.
  *
- * The first entry in that order that both reads on this mode's surface and is visibly its colour
- * is used as it is. Otherwise the best of them is walked in lightness until it reads — its hue and
+ * Among those, one in the vivid middle of the lightness range beats a deep one of similar
+ * chroma, so a mid orange is chosen over a dark red.
+ *
+ * The best entry is used as it is if it reads on this mode's surface, or a palette shade of the
+ * same hue that does. Otherwise it is walked in lightness until it reads — its hue and
  * chroma are still the palette's, only its lightness moves — because a shade you can see is purple
  * beats a palette entry that is technically purple and looks black. A palette with nothing but the
  * primary in it gets a shade of the primary, there being nothing else in it to use.
@@ -166,6 +177,9 @@ function secondaryFor(
         isVisible:
           lightness >= SECONDARY_MIN_LIGHTNESS &&
           lightness <= SECONDARY_MAX_LIGHTNESS,
+        isVivid:
+          lightness >= SECONDARY_VIVID_MIN_LIGHTNESS &&
+          lightness <= SECONDARY_VIVID_MAX_LIGHTNESS,
         ratio: contrastRatio(hex, surface),
       };
     });
@@ -178,17 +192,29 @@ function secondaryFor(
   const better = (a: Candidate, b: Candidate): number =>
     Number(b.isOtherHue) - Number(a.isOtherHue) ||
     Number(b.isVisible) - Number(a.isVisible) ||
+    Number(b.isVivid) - Number(a.isVivid) ||
     Number(b.isDistinct) - Number(a.isDistinct) ||
     b.chroma - a.chroma;
   const ranked = [...others].sort(better);
 
+  // The best candidate decides the colour; contrast only decides the shade of it. Taking the first
+  // entry that happened to pass let a lower-ranked one win outright — on a pale card a mid orange
+  // fails AA and a dark red passes, so the light theme's secondary came out dark red while the
+  // dark theme's was the orange. A passing shade of the same hue from the palette is used if
+  // there is one; otherwise the best is walked darker or lighter until it reads.
+  const best = ranked[0] as Candidate;
+  const bestHue = hueOf(best.hex);
   const ready = ranked.find(
-    (entry) => entry.isVisible && entry.ratio >= SECONDARY_MIN_CONTRAST,
+    (entry) =>
+      entry.isVisible &&
+      entry.ratio >= SECONDARY_MIN_CONTRAST &&
+      (entry === best ||
+        (entry.chroma >= SECONDARY_MIN_CHROMA &&
+          hueDistance(hueOf(entry.hex), bestHue) <= SECONDARY_SAME_HUE)),
   );
   if (ready) return ready.hex;
 
-  const best = ranked[0] as Candidate;
-  return walkToContrast(hueOf(best.hex), best.chroma, surface, mode);
+  return walkToContrast(bestHue, best.chroma, surface, mode);
 }
 
 /**
