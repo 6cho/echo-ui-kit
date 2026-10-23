@@ -4,12 +4,14 @@ import {
   DEFAULT_NEUTRAL_TINT,
   deriveNeutrals,
   formatThemeCss,
+  fromHsl,
   paletteAccent,
   suggestThemePair,
   THEME_ROLES,
   type ThemeMapping,
   type ThemePair,
   type ThemeRoleId,
+  toHsl,
   wcagLevel,
 } from "@echo-ui-kit/tools-core";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -600,54 +602,17 @@ export function ThemeTester({
   baseColor?: string | null;
 }) {
   /**
-   * Near-greys carrying the palette's hue, derived rather than picked.
-   *
-   * Deliberately not part of the palette: an interface is mostly structure — page, card, divider,
-   * body copy — and a palette asked to supply those as well as its accents ends up either too
-   * long to be a palette or too colourful to be an interface. These exist alongside it so a theme
-   * can be built out of both without either one muddying the other.
+   * Near-greys carrying the palette's hue, derived rather than picked — what the suggested theme
+   * builds its page, cards, borders and copy from. Any one of them can then be tweaked like every
+   * other colour, in the selector's Adjust sliders.
    */
-  const [tint, setTint] = useState(DEFAULT_NEUTRAL_TINT);
-  /**
-   * Which colour the neutrals lean toward. By default the palette's base, which is also what the
-   * theme paints its buttons with, so the structure leans toward the same colour the theme is
-   * accented in. It can be pointed at any other palette colour — a blue-accented theme on
-   * green-grey structure is a perfectly good theme — but only on purpose: the neutrals drive the
-   * whole suggested theme, so following whichever colour was last clicked would re-suggest the
-   * theme, and throw away the edit just made, on every click.
-   *
-   * Kept as a choice only while the palette still contains it; a palette edit that removes it
-   * falls back to the base rather than tinting toward a colour that is no longer there.
-   */
-  const [chosenNeutralSource, setChosenNeutralSource] = useState<string | null>(
-    null,
-  );
-  const defaultNeutralSource =
-    baseColor ?? paletteAccent(paletteColors) ?? "#71717a";
-  const neutralSource =
-    chosenNeutralSource &&
-    paletteColors.some(
-      (hex) => hex.toLowerCase() === chosenNeutralSource.toLowerCase(),
-    )
-      ? chosenNeutralSource
-      : defaultNeutralSource;
-  const neutrals = useMemo(
-    () => deriveNeutrals(neutralSource, tint),
-    [neutralSource, tint],
-  );
-  // The two ends of what the slider can do, so its track shows them rather than naming them.
-  const tintTrack = useMemo(() => {
-    const at = (amount: number) =>
-      deriveNeutrals(neutralSource, amount).find((entry) => entry.step === 500)
-        ?.hex ?? "#71717a";
-    return {
-      gradient: `linear-gradient(90deg, ${at(0)}, ${at(1)})`,
-      thumb: at(tint),
-    };
-  }, [neutralSource, tint]);
+  const neutralSource = baseColor ?? paletteAccent(paletteColors) ?? "#71717a";
   const neutralHexes = useMemo(
-    () => neutrals.map((entry) => entry.hex),
-    [neutrals],
+    () =>
+      deriveNeutrals(neutralSource, DEFAULT_NEUTRAL_TINT).map(
+        (entry) => entry.hex,
+      ),
+    [neutralSource],
   );
 
   const [pair, setPair] = useState<ThemePair>(() =>
@@ -787,6 +752,42 @@ export function ThemeTester({
   const currentHex = isComponentKey(target)
     ? (components[mode][target] ?? "#000000")
     : pair[mode][target];
+
+  /**
+   * The colour being edited as hue, saturation and lightness, for the Adjust sliders. Held while
+   * dragging rather than read back from the hex each time: a grey has no hue, so dragging
+   * saturation down to zero and back up again would otherwise lose the hue it started with. Read
+   * afresh whenever the colour is changed some other way.
+   */
+  const [held, setHeld] = useState<{
+    key: string;
+    hex: string;
+    h: number;
+    s: number;
+    l: number;
+  } | null>(null);
+  const adjustKey = `${mode}:${target}`;
+  const hsl = useMemo(() => {
+    if (
+      held &&
+      held.key === adjustKey &&
+      held.hex.toLowerCase() === currentHex.toLowerCase()
+    ) {
+      return held;
+    }
+    try {
+      const color = toHsl(currentHex);
+      return { h: color.h ?? 0, s: color.s, l: color.l };
+    } catch {
+      return { h: 0, s: 0, l: 0 };
+    }
+  }, [held, adjustKey, currentHex]);
+
+  function adjust(next: { h: number; s: number; l: number }) {
+    const hex = fromHsl(next);
+    setHeld({ key: adjustKey, hex, ...next });
+    assign(hex);
+  }
 
   function assign(hex: string) {
     if (isComponentKey(target)) {
@@ -1000,42 +1001,44 @@ export function ThemeTester({
         />
       </div>
 
-      {/* Under the palette, because that is the order they are derived in and the order they
-          matter in: the palette is the decision, these follow from it. */}
-      <div className="flex flex-col gap-1.5">
-        <ColorStrip
-          label="Tint neutrals toward"
-          colors={paletteColors}
-          value={neutralSource}
-          onChange={setChosenNeutralSource}
-        />
-        <ColorStrip
-          label="Neutrals · page, cards, borders and copy"
-          colors={neutralHexes}
-          value={currentHex}
-          onChange={assign}
-        />
-        {/* How much of the palette's colour the structure carries, from grey to the colour's own
-            saturation. No value along it is more correct than another, which is why it is a
-            control rather than a constant — but the theme did start somewhere, so the slider
-            carries a tick for it. */}
+      {/* Fine-tuning for whatever colour is picked above, the same three sliders the palette
+          tool adjusts its base with. */}
+      <div className="flex flex-col gap-2.5">
+        <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+          Adjust
+        </span>
         <Slider
-          label="Neutral tint"
-          value={tint}
+          label="Hue"
+          value={Math.round(hsl.h)}
           min={0}
-          max={1}
-          step={0.01}
-          markerValue={DEFAULT_NEUTRAL_TINT}
-          trackBackground={tintTrack.gradient}
-          thumbColor={tintTrack.thumb}
-          displayValue={
-            tint === 0
-              ? "Grayscale"
-              : tint === 1
-                ? "Full saturation"
-                : `${Math.round(tint * 100)}%`
-          }
-          onChange={setTint}
+          max={360}
+          step={1}
+          displayValue={`${Math.round(hsl.h)}°`}
+          trackBackground="linear-gradient(to right, hsl(0 100% 50%), hsl(60 100% 50%), hsl(120 100% 50%), hsl(180 100% 50%), hsl(240 100% 50%), hsl(300 100% 50%), hsl(360 100% 50%))"
+          thumbColor={currentHex}
+          onChange={(h) => adjust({ ...hsl, h })}
+        />
+        <Slider
+          label="Saturation"
+          value={Math.round(hsl.s * 100)}
+          min={0}
+          max={100}
+          step={1}
+          displayValue={`${Math.round(hsl.s * 100)}%`}
+          trackBackground={`linear-gradient(to right, hsl(${hsl.h} 0% ${hsl.l * 100}%), hsl(${hsl.h} 100% ${hsl.l * 100}%))`}
+          thumbColor={currentHex}
+          onChange={(value) => adjust({ ...hsl, s: value / 100 })}
+        />
+        <Slider
+          label="Lightness"
+          value={Math.round(hsl.l * 100)}
+          min={0}
+          max={100}
+          step={1}
+          displayValue={`${Math.round(hsl.l * 100)}%`}
+          trackBackground={`linear-gradient(to right, hsl(${hsl.h} ${hsl.s * 100}% 0%), hsl(${hsl.h} ${hsl.s * 100}% 50%), hsl(${hsl.h} ${hsl.s * 100}% 100%))`}
+          thumbColor={currentHex}
+          onChange={(value) => adjust({ ...hsl, l: value / 100 })}
         />
       </div>
 
