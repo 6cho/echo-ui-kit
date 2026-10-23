@@ -166,7 +166,7 @@ export function ColorEditorModal({
       aria-label={title}
       // Centred with `translate`, which is its own property in Tailwind v4, so it composes with
       // the entrance animation's transform rather than being overwritten by it.
-      className="clay fixed top-3 left-1/2 z-40 flex w-[min(480px,calc(100vw-24px))] -translate-x-1/2 origin-top animate-popover-in flex-col gap-5 rounded-2xl border border-black/10 bg-white p-6 dark:border-white/10 dark:bg-surface-elevated"
+      className="clay fixed top-3 left-1/2 z-40 flex w-[min(540px,calc(100vw-24px))] -translate-x-1/2 origin-top animate-popover-in flex-col gap-7 rounded-3xl border border-black/10 bg-white p-6 sm:p-10 dark:border-white/10 dark:bg-surface-elevated"
     >
       <div className="flex items-center gap-2">
         <span
@@ -208,7 +208,7 @@ export function ColorEditorModal({
         onCustom={onChange}
       />
 
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-5">
         <Slider
           label="Hue"
           value={Math.round(hsl.h)}
